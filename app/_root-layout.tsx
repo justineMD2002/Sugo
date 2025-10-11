@@ -1,5 +1,6 @@
 import { AuthProvider } from '@/src/context/AuthContext';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { PortalHost } from '@rn-primitives/portal';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import '../global.css';
@@ -14,6 +15,7 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" />
         </Stack>
         <StatusBar style="dark" />
+        <PortalHost />
       </ThemeProvider>
     </AuthProvider>
   );

@@ -1,9 +1,12 @@
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Text } from '@/components/ui/text';
 import { useAuth } from '@/src/context/AuthContext';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Phone, User } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 export default function RegisterScreen() {
   const [name, setName] = useState('');
@@ -27,51 +30,43 @@ export default function RegisterScreen() {
         />
       </View>
 
-      <Text className="text-3xl font-semibold text-center text-gray-900" accessibilityRole="header">
+      <Text className="text-3xl font-semibold text-center text-foreground" accessibilityRole="header">
         Create Account
       </Text>
-      <Text className="text-base text-gray-600 mt-2 mb-6 text-center">
+      <Text className="text-base text-muted-foreground mt-2 mb-6 text-center">
         Sign up to get started
       </Text>
 
-      <View className="flex-row items-center mt-4 bg-gray-50 rounded-xl p-3 w-full border border-gray-200">
-        <User color="#c7c7cc" size={20} style={{ marginRight: 12 }} />
-        <TextInput
+      <View className="w-full gap-4 mt-4">
+        <Input
           placeholder="Full Name"
-          placeholderTextColor="#c7c7cc"
-          className="flex-1 h-10 text-base text-gray-900"
-          accessibilityLabel="Name input"
           value={name}
           onChangeText={setName}
+          className="h-14"
         />
-      </View>
 
-      <View className="flex-row items-center mt-4 bg-gray-50 rounded-xl p-3 w-full border border-gray-200">
-        <Phone color="#c7c7cc" size={20} style={{ marginRight: 12 }} />
-        <TextInput
+        <Input
           placeholder="+63 915 123 6121"
-          placeholderTextColor="#c7c7cc"
-          className="flex-1 h-10 text-base text-gray-900"
           keyboardType="phone-pad"
-          accessibilityLabel="Phone number input"
           value={phoneNumber}
           onChangeText={setPhoneNumber}
+          className="h-14"
         />
       </View>
 
-      <Pressable 
-        className="mt-6 bg-[#d92020] py-3.5 w-full rounded-xl items-center active:opacity-80" 
-        accessibilityRole="button"
+      <Button 
+        className="mt-6 h-14 w-full bg-[#d92020]" 
         onPress={handleRegister}
+        size="lg"
       >
         <Text className="text-white text-base font-semibold">
           Sign Up
         </Text>
-      </Pressable>
+      </Button>
 
       <Pressable onPress={() => router.back()}>
-        <Text className="mt-10 text-gray-400">
-          Already have an account? <Text className="text-blue-600 underline">Log in</Text>
+        <Text className="mt-10 text-muted-foreground">
+          Already have an account? <Text className="text-blue-600">Log in</Text>
         </Text>
       </Pressable>
     </View>
