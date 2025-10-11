@@ -1,27 +1,21 @@
-import { useAuth } from '@/src/context/AuthContext';
 import { ScrollView, Text, View } from 'react-native';
 
-export default function HomeScreen() {
-  const { user } = useAuth();
-
+export default function OrdersScreen() {
   return (
     <ScrollView className="flex-1 bg-white">
       <View className="px-6 pt-12 pb-6">
         <Text className="text-2xl font-bold text-gray-900">
-          Welcome back{user?.name ? `, ${user.name}` : ''}!
+          My Orders
         </Text>
         <Text className="text-gray-600 mt-2">
-          What would you like to order today?
+          Track your orders here
         </Text>
       </View>
 
       <View className="px-6">
         <View className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-          <Text className="text-lg font-semibold text-gray-900 mb-2">
-            Quick Actions
-          </Text>
           <Text className="text-gray-600">
-            Your home screen content goes here
+            No orders yet
           </Text>
         </View>
       </View>
