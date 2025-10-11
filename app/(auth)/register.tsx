@@ -63,7 +63,6 @@ export default function RegisterScreen() {
         </Text>
       </Button>
 
-
       <Pressable onPress={() => router.back()}>
         <Text className="mt-10 text-muted-foreground">
           Already have an account? <Text className="text-blue-600">Log in</Text>
