@@ -48,6 +48,7 @@ export default function SugoScreen() {
   const [currentOrder, setCurrentOrder] = useState<any>(null);
   const [currentDelivery, setCurrentDelivery] = useState<any>(null);
   const [deliveryStatus, setDeliveryStatus] = useState<any>(null);
+  const [pendingOrders, setPendingOrders] = useState<any[]>([]);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -304,6 +305,100 @@ export default function SugoScreen() {
     }
   };
 
+  // Fetch pending orders for riders
+  const fetchPendingOrders = async () => {
+    // Clear existing orders first
+    setPendingOrders([]);
+
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('status', 'pending')
+        .eq('service_type', workerService)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching pending orders:', error);
+        return;
+      }
+
+      setPendingOrders(data || []);
+    } catch (error) {
+      console.error('Unexpected error fetching pending orders:', error);
+    }
+  };
+
+  // Accept order as a rider
+  const acceptOrder = async (order: any) => {
+    if (!currentUser) {
+      showToastMessage('Please log in to accept orders', 'error');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Update order status to 'ongoing'
+      const { error: orderError } = await supabase
+        .from('orders')
+        .update({ status: 'ongoing' })
+        .eq('id', order.id);
+
+      if (orderError) {
+        showToastMessage('Failed to accept order. Please try again.', 'error');
+        setIsLoading(false);
+        return;
+      }
+
+      // Create delivery record
+      const deliveryData = {
+        order_id: order.id,
+        rider_id: currentUser.id,
+        status: 'ongoing',
+        is_assigned: true,
+        is_accepted: true,
+        is_picked_up: false,
+        is_completed: false,
+        earnings: order.service_fee || 0,
+      };
+
+      const { data: deliveryRecord, error: deliveryError } = await supabase
+        .from('deliveries')
+        .insert([deliveryData])
+        .select()
+        .single();
+
+      if (deliveryError) {
+        // Rollback order status if delivery creation failed
+        await supabase
+          .from('orders')
+          .update({ status: 'pending' })
+          .eq('id', order.id);
+
+        showToastMessage('Failed to create delivery record. Please try again.', 'error');
+        setIsLoading(false);
+        return;
+      }
+
+      // Update pending orders list (remove accepted order)
+      setPendingOrders((prev) => prev.filter((o) => o.id !== order.id));
+
+      // Set as current delivery
+      setCurrentDelivery({
+        ...deliveryRecord,
+        order: order,
+      });
+
+      showToastMessage('Order accepted successfully!', 'success');
+      setCurrentScreen('home');
+    } catch (error) {
+      showToastMessage('An unexpected error occurred. Please try again.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const completeOrder = () => {
     if (currentOrder) {
       setCurrentOrder(null);
@@ -496,6 +591,56 @@ export default function SugoScreen() {
     };
   }, [currentOrder?.id, currentUser?.id, userType]);
 
+  // Fetch pending orders when rider is on home screen
+  useEffect(() => {
+    if (userType === 'rider' && currentScreen === 'home' && currentUser && !currentDelivery) {
+      fetchPendingOrders();
+
+      // Set up real-time subscription for new pending orders
+      const ordersChannel = supabase
+        .channel('pending-orders')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'orders',
+            filter: `status=eq.pending`,
+          },
+          (payload) => {
+            console.log('New pending order:', payload);
+            const newOrder = payload.new as any;
+
+            // Only add if it matches the rider's service type
+            if (newOrder.service_type === workerService) {
+              setPendingOrders((prev) => [newOrder, ...prev]);
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'orders',
+          },
+          (payload) => {
+            const updatedOrder = payload.new as any;
+
+            // Remove from pending list if status changed
+            if (updatedOrder.status !== 'pending') {
+              setPendingOrders((prev) => prev.filter((o) => o.id !== updatedOrder.id));
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(ordersChannel);
+      };
+    }
+  }, [userType, currentScreen, currentUser, workerService, currentDelivery]);
+
   const handleSignup = () => {
     // Validate form fields
     if (!signupFullName.trim()) {
@@ -510,6 +655,13 @@ export default function SugoScreen() {
 
     if (!signupPhoneNumber.trim()) {
       showToastMessage('Please enter your phone number', 'error');
+      return;
+    }
+
+    // Validate phone number format (Philippine numbers)
+    const phoneValidation = isValidPhilippineNumber(signupPhoneNumber);
+    if (!phoneValidation) {
+      showToastMessage('Please enter a valid Philippine phone number (+639XXXXXXXXX or 09XXXXXXXXX)', 'error');
       return;
     }
 
@@ -586,7 +738,7 @@ export default function SugoScreen() {
               vehicle_color: vehicleColor,
               plate_number: plateNumber.toUpperCase(),
               is_available: true,
-              is_verified: false,
+              is_verified: true, // TODO: Change to false when admin approval workflow is implemented
               is_online: false,
             };
 
@@ -644,7 +796,7 @@ export default function SugoScreen() {
     try {
       const result = await signInUserWithPhone(loginPhoneNumber.trim(), loginPassword);
 
-      if (result.success) {
+      if (result.success && result.user) {
         // Store the authenticated user
         setCurrentUser(result.user);
 
@@ -1074,42 +1226,44 @@ export default function SugoScreen() {
             </>
           ) : (
             <>
-              <Header 
-                title="Good Day, Mark!" 
+              <Header
+                title="Good Day, Mark!"
                 subtitle={`Ready for ${workerService === 'delivery' ? 'deliveries' : 'jobs'}?`}
-                showSearch
-                showNotifications
-                showSettings
-                onSearchPress={() => setShowSearch(true)}
-                onNotificationsPress={() => setShowNotifications(true)}
-                onSettingsPress={() => setShowSettings(true)}
-                notificationBadge
               />
+              <View style={{ padding: 12, backgroundColor: '#f9fafb', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' }}>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 8 }}
+                  onPress={fetchPendingOrders}
+                >
+                  <Ionicons name="refresh" size={20} color="#dc2626" />
+                  <Text style={{ color: '#dc2626', fontWeight: '600' }}>Refresh Orders</Text>
+                </TouchableOpacity>
+              </View>
               <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-                {[{ id: 'DLV-2848', pickup: 'SM City Cebu', dropoff: 'IT Park', fee: '₱95' }, { id: 'DLV-2849', pickup: 'Ayala Center', dropoff: 'Capitol Site', fee: '₱75' }].map((order) => (
-                  <SectionCard key={order.id}>
-                    <Row label="Order ID" value={order.id} />
-                    {workerService === 'delivery' ? (
-                      <>
-                        <Row label="Pickup" value={order.pickup} />
-                        <Row label="Drop-off" value={order.dropoff} />
-                      </>
-                    ) : (
-                      <Row label="Job" value={workerService === 'plumbing' ? 'Plumbing' : workerService === 'aircon' ? 'Aircon Repair' : 'Electrician'} />
-                    )}
-                    <Row label="Fee" value={order.fee} valueTint="#dc2626" />
-                    <TouchableOpacity style={styles.primaryBtn} onPress={() => {
-                      if (workerService === 'delivery') {
-                        setCurrentDelivery({ id: order.id, customer: 'John Doe', phone: '+1 234 567 8900', pickup: order.pickup, dropoff: order.dropoff, fee: order.fee });
-                      } else {
-                        setCurrentDelivery({ id: order.id.replace('DLV', 'SRV'), customer: 'Homeowner', phone: '+1 234 567 8900', dropoff: 'Cebu City', fee: order.fee });
-                      }
-                      setCurrentScreen('home');
-                    }}>
-                      <Text style={styles.primaryText}>{workerService === 'delivery' ? 'Accept Order' : 'Accept Job'}</Text>
-                    </TouchableOpacity>
-                  </SectionCard>
-                ))}
+                {pendingOrders.length === 0 ? (
+                  <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
+                    <Ionicons name="cube-outline" size={64} color="#d1d5db" />
+                    <Text style={{ color: '#6b7280', fontSize: 16, marginTop: 12 }}>No pending {workerService === 'delivery' ? 'deliveries' : 'jobs'} available</Text>
+                  </View>
+                ) : (
+                  pendingOrders.map((order) => (
+                    <SectionCard key={order.id}>
+                      <Row label="Order ID" value={order.order_number} />
+                      <Row label="Pickup" value={order.pickup_address} />
+                      <Row label="Drop-off" value={order.delivery_address} />
+                      <Row label="Item" value={order.item_description} />
+                      <Row label="Service Fee" value={`₱${order.service_fee.toFixed(2)}`} valueTint="#16a34a" />
+                      <Row label="Total Amount" value={`₱${order.total_amount.toFixed(2)}`} valueTint="#dc2626" />
+                      <TouchableOpacity
+                        style={[styles.primaryBtn, isLoading && { opacity: 0.5 }]}
+                        onPress={() => acceptOrder(order)}
+                        disabled={isLoading}
+                      >
+                        <Text style={styles.primaryText}>Accept Order</Text>
+                      </TouchableOpacity>
+                    </SectionCard>
+                  ))
+                )}
               </ScrollView>
             </>
           )}
