@@ -206,3 +206,117 @@ export async function getUserAddresses(userId: string): Promise<AddressesRespons
     };
   }
 }
+
+export interface CreateAddressData {
+  user_id: string;
+  address_name: string;
+  full_address: string;
+  is_default?: boolean;
+}
+
+export interface AddressResponse {
+  success: boolean;
+  address?: Address;
+  error?: string;
+}
+
+export async function createAddress(addressData: CreateAddressData): Promise<AddressResponse> {
+  try {
+    const { data, error } = await supabase
+      .from('addresses')
+      .insert([{
+        ...addressData,
+        is_default: addressData.is_default || false
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, address: data as Address };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'An unexpected error occurred while creating address'
+    };
+  }
+}
+
+export interface UpdateAddressData {
+  address_name?: string;
+  full_address?: string;
+  is_default?: boolean;
+}
+
+export async function updateAddress(addressId: string, updateData: UpdateAddressData): Promise<AddressResponse> {
+  try {
+    const { data, error } = await supabase
+      .from('addresses')
+      .update(updateData)
+      .eq('id', addressId)
+      .select()
+      .single();
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, address: data as Address };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'An unexpected error occurred while updating address'
+    };
+  }
+}
+
+export async function deleteAddress(addressId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('addresses')
+      .delete()
+      .eq('id', addressId);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'An unexpected error occurred while deleting address'
+    };
+  }
+}
+
+export async function setDefaultAddress(userId: string, addressId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error: unsetError } = await supabase
+      .from('addresses')
+      .update({ is_default: false })
+      .eq('user_id', userId);
+
+    if (unsetError) {
+      return { success: false, error: unsetError.message };
+    }
+
+    const { error: setError } = await supabase
+      .from('addresses')
+      .update({ is_default: true })
+      .eq('id', addressId);
+
+    if (setError) {
+      return { success: false, error: setError.message };
+    }
+
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'An unexpected error occurred while setting default address'
+    };
+  }
+}
