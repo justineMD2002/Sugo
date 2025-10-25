@@ -15,6 +15,7 @@ import ShareModal from '@/components/sugo/ShareModal';
 import SplashScreen from '@/components/sugo/SplashScreen';
 import Toast from '@/components/sugo/Toast';
 import { getCurrentUser, signInUserWithPhone, signOutUser, SignUpData, signUpUser } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -46,14 +47,11 @@ export default function SugoScreen() {
 
   const [currentOrder, setCurrentOrder] = useState<any>(null);
   const [currentDelivery, setCurrentDelivery] = useState<any>(null);
+  const [deliveryStatus, setDeliveryStatus] = useState<any>(null);
 
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: 1, sender: 'rider', text: 'Hello! I have picked up your order.', time: '2:30 PM' },
-    { id: 2, sender: 'rider', text: 'On my way to delivery location.', time: '2:31 PM' },
-    { id: 3, sender: 'customer', text: 'Thank you! How long will it take?', time: '2:32 PM' },
-    { id: 4, sender: 'rider', text: 'Around 10-15 minutes. Traffic is light.', time: '2:33 PM' },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
 
   // Toast state
   const [toastMessage, setToastMessage] = useState('');
@@ -96,6 +94,12 @@ export default function SugoScreen() {
   const [signupPassword, setSignupPassword] = useState('');
   const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
 
+  // Vehicle information for riders
+  const [vehicleBrand, setVehicleBrand] = useState('');
+  const [vehicleModel, setVehicleModel] = useState('');
+  const [vehicleColor, setVehicleColor] = useState('');
+  const [plateNumber, setPlateNumber] = useState('');
+
   // Rating and Payment states
   const [currentRating, setCurrentRating] = useState(0);
   const [ratingComment, setRatingComment] = useState('');
@@ -129,21 +133,175 @@ export default function SugoScreen() {
   ]);
   const [selectedTicket, setSelectedTicket] = useState<ServiceTicket | null>(null);
 
+  // Delivery form state
+  const [pickupAddress, setPickupAddress] = useState('');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [itemDescription, setItemDescription] = useState('');
+  const [receiverName, setReceiverName] = useState('');
+  const [receiverPhone, setReceiverPhone] = useState('');
+
   // Add callOptions state
   const [callNumber, setCallNumber] = useState<string>("");
 
-  const sendMessage = () => {
-    if (!newMessage.trim()) return;
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: prev.length + 1,
-        sender: userType === 'customer' ? 'customer' : 'rider',
-        text: newMessage,
-        time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-      },
-    ]);
+  // Order details collapse state
+  const [isOrderDetailsExpanded, setIsOrderDetailsExpanded] = useState(false);
+
+  // Constants for pricing
+  const SERVICE_FEE = 15;
+  const BASE_AMOUNT = 50;
+
+  // Phone number validation for Philippines
+  const isValidPhilippineNumber = (phone: string) => {
+    // Remove all spaces and dashes
+    const cleaned = phone.replace(/[\s-]/g, '');
+
+    // Pattern 1: +639XXXXXXXXX (13 characters) - International format
+    // Pattern 2: 09XXXXXXXXX (11 characters) - Local format
+    const pattern1 = /^\+639\d{9}$/;
+    const pattern2 = /^09\d{9}$/;
+
+    return pattern1.test(cleaned) || pattern2.test(cleaned);
+  };
+
+  // Computed values for delivery booking
+  const totalAmount = useMemo(() => SERVICE_FEE + BASE_AMOUNT, []);
+  const showTotalAmount = useMemo(() => pickupAddress.trim() !== '' && deliveryAddress.trim() !== '', [pickupAddress, deliveryAddress]);
+  const isValidReceiverPhone = useMemo(() => isValidPhilippineNumber(receiverPhone), [receiverPhone]);
+  const isBookingEnabled = useMemo(() => {
+    return pickupAddress.trim() !== '' &&
+           deliveryAddress.trim() !== '' &&
+           itemDescription.trim() !== '' &&
+           receiverName.trim() !== '' &&
+           receiverPhone.trim() !== '' &&
+           isValidReceiverPhone;
+  }, [pickupAddress, deliveryAddress, itemDescription, receiverName, receiverPhone, isValidReceiverPhone]);
+
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !currentOrder || isSendingMessage) return;
+
+    const messageText = newMessage.trim();
+    const tempId = `temp-${Date.now()}`;
+
+    // Optimistically add message to UI
+    const optimisticMessage: ChatMessage = {
+      id: tempId,
+      sender: userType,
+      text: messageText,
+      time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+    };
+
+    setMessages((prev) => [...prev, optimisticMessage]);
     setNewMessage('');
+    setIsSendingMessage(true);
+
+    try {
+      const messageData = {
+        order_id: currentOrder.id,
+        sender_id: currentUser.id,
+        receiver_id: currentOrder.rider_id || null, // Will be null if rider not assigned yet
+        message_text: messageText,
+        message_type: 'text',
+        is_read: false,
+      };
+
+      const { data, error } = await supabase
+        .from('messages')
+        .insert([messageData])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error sending message:', error);
+
+        // Remove optimistic message and show error
+        setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+        showToastMessage('Failed to send message. Please try again.', 'error');
+
+        // Restore the message in input so user can retry
+        setNewMessage(messageText);
+        setIsSendingMessage(false);
+        return;
+      }
+
+      // Replace temp message with real one from database
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === tempId
+            ? {
+                id: data.id,
+                sender: userType,
+                text: data.message_text,
+                time: new Date(data.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+              }
+            : msg
+        )
+      );
+
+      setIsSendingMessage(false);
+    } catch (error) {
+      console.error('Unexpected error sending message:', error);
+
+      // Remove optimistic message and show error
+      setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+      showToastMessage('Failed to send message. Please try again.', 'error');
+
+      // Restore the message in input so user can retry
+      setNewMessage(messageText);
+      setIsSendingMessage(false);
+    }
+  };
+
+  // Load messages for current order
+  const loadMessages = async (orderId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('Error loading messages:', error);
+        return;
+      }
+
+      // Transform Supabase messages to ChatMessage format
+      const transformedMessages: ChatMessage[] = data.map((msg) => ({
+        id: msg.id,
+        sender: msg.sender_id === currentUser?.id ? userType : (userType === 'customer' ? 'rider' : 'customer'),
+        text: msg.message_text,
+        time: new Date(msg.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+      }));
+
+      setMessages(transformedMessages);
+    } catch (error) {
+      console.error('Unexpected error loading messages:', error);
+    }
+  };
+
+  // Load delivery status for current order
+  const loadDeliveryStatus = async (orderId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('deliveries')
+        .select('*')
+        .eq('order_id', orderId)
+        .single();
+
+      if (error) {
+        // No delivery assigned yet
+        if (error.code === 'PGRST116') {
+          setDeliveryStatus(null);
+          return;
+        }
+        console.error('Error loading delivery status:', error);
+        return;
+      }
+
+      setDeliveryStatus(data);
+    } catch (error) {
+      console.error('Unexpected error loading delivery status:', error);
+    }
   };
 
   const completeOrder = () => {
@@ -163,6 +321,81 @@ export default function SugoScreen() {
     setToastMessage(message);
     setToastType(type);
     setShowToast(true);
+  };
+
+  const bookDelivery = async () => {
+    if (!currentUser) {
+      showToastMessage('Please log in to book a delivery', 'error');
+      return;
+    }
+
+    // Validate phone number before submitting
+    if (!isValidReceiverPhone) {
+      showToastMessage('Please enter a valid Philippine phone number', 'error');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Generate order number with user ID to prevent collisions
+      // Format: ORD-{userId}-{timestamp}
+      // Example: ORD-abc123-45678901
+      const userIdShort = currentUser.id.toString().slice(-6); // Last 6 chars of user ID
+      const timestamp = Date.now().toString().slice(-8); // Last 8 digits of timestamp
+      const orderNumber = `ORD-${userIdShort}-${timestamp}`;
+
+      // Prepare order data
+      const orderData = {
+        order_number: orderNumber,
+        customer_id: currentUser.id,
+        service_type: selectedService, // Dynamic based on selected service
+        status: 'pending',
+        pickup_address: pickupAddress,
+        delivery_address: deliveryAddress,
+        item_description: itemDescription,
+        receiver_name: receiverName,
+        receiver_phone: receiverPhone,
+        service_fee: SERVICE_FEE,
+        total_amount: totalAmount,
+      };
+
+      // Insert order into Supabase
+      const { data, error } = await supabase
+        .from('orders')
+        .insert([orderData])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating order:', error);
+        showToastMessage('Failed to book delivery. Please try again.', 'error');
+        setIsLoading(false);
+        return;
+      }
+
+      // Success - clear form and show success message
+      showToastMessage('Delivery booked successfully!', 'success');
+
+      // Set current order for tracking
+      setCurrentOrder(data);
+
+      // Clear form inputs
+      setPickupAddress('');
+      setDeliveryAddress('');
+      setItemDescription('');
+      setReceiverName('');
+      setReceiverPhone('');
+
+      // Navigate to home to show active order
+      setCurrentScreen('home');
+
+    } catch (error) {
+      console.error('Unexpected error:', error);
+      showToastMessage('An unexpected error occurred. Please try again.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Check for existing session on app start
@@ -197,18 +430,84 @@ export default function SugoScreen() {
     checkSession();
   }, []);
 
+  // Real-time subscription for messages and delivery status
+  useEffect(() => {
+    if (!currentOrder?.id) return;
+
+    // Load initial data
+    loadMessages(currentOrder.id);
+    loadDeliveryStatus(currentOrder.id);
+
+    // Set up real-time subscription for messages
+    const messagesChannel = supabase
+      .channel(`messages:${currentOrder.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `order_id=eq.${currentOrder.id}`,
+        },
+        (payload) => {
+          console.log('New message received:', payload);
+
+          // Add new message to the list
+          const newMsg = payload.new as any;
+          const transformedMsg: ChatMessage = {
+            id: newMsg.id,
+            sender: newMsg.sender_id === currentUser?.id ? userType : (userType === 'customer' ? 'rider' : 'customer'),
+            text: newMsg.message_text,
+            time: new Date(newMsg.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+          };
+
+          setMessages((prev) => [...prev, transformedMsg]);
+        }
+      )
+      .subscribe();
+
+    // Set up real-time subscription for delivery status
+    const deliveryChannel = supabase
+      .channel(`deliveries:${currentOrder.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'deliveries',
+          filter: `order_id=eq.${currentOrder.id}`,
+        },
+        (payload) => {
+          console.log('Delivery status updated:', payload);
+
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            setDeliveryStatus(payload.new);
+          } else if (payload.eventType === 'DELETE') {
+            setDeliveryStatus(null);
+          }
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscriptions on unmount or when order changes
+    return () => {
+      supabase.removeChannel(messagesChannel);
+      supabase.removeChannel(deliveryChannel);
+    };
+  }, [currentOrder?.id, currentUser?.id, userType]);
+
   const handleSignup = () => {
     // Validate form fields
     if (!signupFullName.trim()) {
       showToastMessage('Please enter your full name', 'error');
       return;
     }
-    
+
     if (!signupEmail.trim()) {
       showToastMessage('Please enter your email address', 'error');
       return;
     }
-    
+
     if (!signupPhoneNumber.trim()) {
       showToastMessage('Please enter your phone number', 'error');
       return;
@@ -219,6 +518,26 @@ export default function SugoScreen() {
     if (!emailRegex.test(signupEmail)) {
       showToastMessage('Please enter a valid email address', 'error');
       return;
+    }
+
+    // Validate vehicle information for riders
+    if (userType === 'rider') {
+      if (!vehicleBrand.trim()) {
+        showToastMessage('Please select your vehicle brand', 'error');
+        return;
+      }
+      if (!vehicleModel.trim()) {
+        showToastMessage('Please enter your vehicle model', 'error');
+        return;
+      }
+      if (!vehicleColor.trim()) {
+        showToastMessage('Please enter your vehicle color', 'error');
+        return;
+      }
+      if (!plateNumber.trim()) {
+        showToastMessage('Please enter your plate number', 'error');
+        return;
+      }
     }
 
     // Navigate to password screen
@@ -254,14 +573,46 @@ export default function SugoScreen() {
       };
 
       const result = await signUpUser(signupData);
-      
-      if (result.success) {
+
+      if (result.success && result.user) {
+        // If rider, create rider profile with vehicle information
+        if (userType === 'rider') {
+          try {
+            const riderProfileData = {
+              user_id: result.user.id,
+              service_type: 'delivery', // Default to delivery
+              vehicle_brand: vehicleBrand,
+              vehicle_model: vehicleModel,
+              vehicle_color: vehicleColor,
+              plate_number: plateNumber.toUpperCase(),
+              is_available: true,
+              is_verified: false,
+              is_online: false,
+            };
+
+            const { error: profileError } = await supabase
+              .from('rider_profiles')
+              .insert([riderProfileData]);
+
+            if (profileError) {
+              console.error('Error creating rider profile:', profileError);
+              showToastMessage('Account created but failed to save vehicle info. Please update in profile.', 'info');
+            }
+          } catch (error) {
+            console.error('Error creating rider profile:', error);
+          }
+        }
+
         // Clear form fields
         setSignupFullName('');
         setSignupEmail('');
         setSignupPhoneNumber('');
         setSignupPassword('');
         setSignupConfirmPassword('');
+        setVehicleBrand('');
+        setVehicleModel('');
+        setVehicleColor('');
+        setPlateNumber('');
 
         showToastMessage('Account created successfully! Please check your email.', 'success');
         // Navigate to login screen immediately
@@ -488,22 +839,38 @@ export default function SugoScreen() {
             />
             {userType === 'rider' && (
               <View style={{ gap: 8, opacity: isLoading ? 0.4 : 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827', marginTop: 8 }}>Vehicle Information</Text>
                 <TextInput
-                  placeholder="Vehicle Brand and Model"
+                  placeholder="Vehicle Brand (e.g., Honda, Yamaha, Suzuki)"
                   placeholderTextColor="#9ca3af"
                   style={styles.input}
+                  value={vehicleBrand}
+                  onChangeText={setVehicleBrand}
+                  editable={!isLoading}
+                />
+                <TextInput
+                  placeholder="Vehicle Model (e.g., Wave 110, Click 150)"
+                  placeholderTextColor="#9ca3af"
+                  style={styles.input}
+                  value={vehicleModel}
+                  onChangeText={setVehicleModel}
                   editable={!isLoading}
                 />
                 <TextInput
                   placeholder="Vehicle Color"
                   placeholderTextColor="#9ca3af"
                   style={styles.input}
+                  value={vehicleColor}
+                  onChangeText={setVehicleColor}
                   editable={!isLoading}
                 />
                 <TextInput
-                  placeholder="Plate Number"
+                  placeholder="Plate Number (e.g., ABC-1234)"
                   placeholderTextColor="#9ca3af"
                   style={styles.input}
+                  value={plateNumber}
+                  onChangeText={setPlateNumber}
+                  autoCapitalize="characters"
                   editable={!isLoading}
                 />
               </View>
@@ -615,7 +982,7 @@ export default function SugoScreen() {
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
       {userType === 'rider' ? (
         <>
-          {currentDelivery ? (
+          {currentDelivery && currentScreen === 'home' ? (
             <>
               <Header title="Current Delivery" subtitle={`Order #${currentDelivery.id} - In Progress`} />
               <View style={{ flex: 1, padding: 16, gap: 12 }}>
@@ -628,7 +995,7 @@ export default function SugoScreen() {
                 </SectionCard>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.sectionTitle}>Chat with Customer</Text>
-                  <Chat messages={messages} input={newMessage} onChangeInput={setNewMessage} onSend={sendMessage} alignRightFor="rider" />
+                  <Chat messages={messages} input={newMessage} onChangeInput={setNewMessage} onSend={sendMessage} alignRightFor="rider" disabled={isSendingMessage} />
                 </View>
                 <View style={{ flexDirection: 'row', gap: 12 }}>
                   <TouchableOpacity style={[styles.primaryBtn, { flex: 1, backgroundColor: '#16a34a' }]}>
@@ -749,33 +1116,75 @@ export default function SugoScreen() {
         </>
       ) : (
         <>
-          {currentOrder ? (
+          {currentOrder && currentScreen === 'home' ? (
             <>
-              <Header title="Current Order" subtitle={`Order #${currentOrder.id} - In Progress`} />
+              <Header title="Current Order" subtitle={`Order #${currentOrder.order_number || currentOrder.id} - ${currentOrder.status || 'In Progress'}`} />
               <View style={{ flex: 1, padding: 16, gap: 12 }}>
-                <SectionCard title="Order Details">
-                  <Row label="Item" value={currentOrder.item} />
-                  <Row label="Receiver" value={currentOrder.receiver} />
-                  <Row label="Contact" value={currentOrder.contact} />
-                  <Row label="Rider" value={currentOrder.rider} />
-                  <Row label="Total" value={`₱${currentOrder.total || 85}.00`} valueTint="#dc2626" />
-                </SectionCard>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.sectionTitle}>Chat with Rider</Text>
-                  <Chat messages={messages} input={newMessage} onChangeInput={setNewMessage} onSend={sendMessage} alignRightFor="customer" />
+                <TouchableOpacity
+                  onPress={() => setIsOrderDetailsExpanded(!isOrderDetailsExpanded)}
+                  activeOpacity={0.7}
+                >
+                  <SectionCard title="Order Details">
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: isOrderDetailsExpanded ? 12 : 0 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 16, fontWeight: '600', color: '#dc2626', marginTop: 2 }}>
+                          ₱{(currentOrder.total_amount || currentOrder.total || 0).toFixed(2)}
+                        </Text>
+                      </View>
+                      <Ionicons
+                        name={isOrderDetailsExpanded ? "chevron-up" : "chevron-down"}
+                        size={20}
+                        color="#6b7280"
+                      />
+                    </View>
+                    {isOrderDetailsExpanded && (
+                      <View>
+                        <View style={{ height: 1, backgroundColor: '#e5e7eb', marginBottom: 12 }} />
+                        <Row label="Pickup Address" value={currentOrder.pickup_address || 'N/A'} />
+                        <Row label="Delivery Address" value={currentOrder.delivery_address || 'N/A'} />
+                        <Row label="Item Description" value={currentOrder.item_description || currentOrder.item || 'N/A'} />
+                        <Row label="Receiver" value={currentOrder.receiver_name || currentOrder.receiver || 'N/A'} />
+                        <Row label="Contact" value={currentOrder.receiver_phone || currentOrder.contact || 'N/A'} />
+                      </View>
+                    )}
+                  </SectionCard>
+                </TouchableOpacity>
+                <View style={{
+                  flex: 1,
+                  backgroundColor: '#ffffff',
+                  borderRadius: 12,
+                  padding: 16,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 8,
+                  elevation: 4
+                }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Chat with Rider</Text>
+                    <View style={{ backgroundColor: '#fee2e2', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
+                      <Text style={{ fontSize: 11, color: '#dc2626', fontWeight: '600' }}>ACTIVE</Text>
+                    </View>
+                  </View>
+                  <Chat messages={messages} input={newMessage} onChangeInput={setNewMessage} onSend={sendMessage} alignRightFor="customer" disabled={isSendingMessage} />
                 </View>
                 <View style={{ flexDirection: 'row', gap: 12 }}>
-                  <TouchableOpacity 
-                    style={[styles.trackOrderBtn, { flex: 1 }]} 
-                    onPress={() => setShowOrderTracking(true)}
+                  <TouchableOpacity
+                    style={[styles.trackOrderBtn, { flex: 1 }]}
+                    onPress={() => {
+                      if (currentOrder?.id) {
+                        loadDeliveryStatus(currentOrder.id);
+                      }
+                      setShowOrderTracking(true);
+                    }}
                   >
                     <Ionicons name="navigate" size={16} color="#fff" />
                     <Text style={styles.primaryText}>Track Order</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[styles.callRiderBtn, { flex: 1 }]}
                     onPress={() => {
-                      setCallNumber(currentOrder?.contact || "+63 000 000 0000");
+                      setCallNumber(currentOrder?.rider_phone || currentOrder?.contact || currentOrder?.receiver_phone || "+63 000 000 0000");
                       setShowCallOptions(true);
                     }}
                   >
@@ -872,6 +1281,8 @@ export default function SugoScreen() {
                         placeholder="Pickup Location"
                         style={[styles.underlinedInput, { flex: 1 }]}
                         placeholderTextColor="#9ca3af"
+                        value={pickupAddress}
+                        onChangeText={setPickupAddress}
                       />
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -880,6 +1291,8 @@ export default function SugoScreen() {
                         placeholder="Delivery Location"
                         style={[styles.underlinedInput, { flex: 1 }]}
                         placeholderTextColor="#9ca3af"
+                        value={deliveryAddress}
+                        onChangeText={setDeliveryAddress}
                       />
                     </View>
                   </SectionCard>
@@ -915,9 +1328,39 @@ export default function SugoScreen() {
                   <SectionCard title={selectedService === 'delivery' ? 'Order Details' : 'Service Request'}>
                     {selectedService === 'delivery' ? (
                       <>
-                        <TextInput placeholder="Item Description" style={[styles.input, { height: 100 }]} multiline placeholderTextColor="#9ca3af" />
-                        <TextInput placeholder="Receiver Name" style={styles.input} placeholderTextColor="#9ca3af" />
-                        <TextInput placeholder="Receiver Contact" style={styles.input} placeholderTextColor="#9ca3af" />
+                        <TextInput
+                          placeholder="Item Description"
+                          style={[styles.input, { height: 100 }]}
+                          multiline
+                          placeholderTextColor="#9ca3af"
+                          value={itemDescription}
+                          onChangeText={setItemDescription}
+                        />
+                        <TextInput
+                          placeholder="Receiver Name"
+                          style={styles.input}
+                          placeholderTextColor="#9ca3af"
+                          value={receiverName}
+                          onChangeText={setReceiverName}
+                        />
+                        <View>
+                          <TextInput
+                            placeholder="Receiver Contact (+639XXXXXXXXX or 09XXXXXXXXX)"
+                            style={[
+                              styles.input,
+                              receiverPhone.trim() !== '' && !isValidReceiverPhone && { borderColor: '#dc2626', borderWidth: 1 }
+                            ]}
+                            placeholderTextColor="#9ca3af"
+                            value={receiverPhone}
+                            onChangeText={setReceiverPhone}
+                            keyboardType="phone-pad"
+                          />
+                          {receiverPhone.trim() !== '' && !isValidReceiverPhone && (
+                            <Text style={{ fontSize: 12, color: '#dc2626', marginTop: 4 }}>
+                              Please enter a valid Philippine number (+639XXXXXXXXX or 09XXXXXXXXX)
+                            </Text>
+                          )}
+                        </View>
                       </>
                     ) : (
                       <>
@@ -952,17 +1395,17 @@ export default function SugoScreen() {
                 )}
                 {selectedService === 'delivery' && (
                   <TouchableOpacity
-                    style={[styles.primaryBtn, { backgroundColor: '#dc2626' }]}
-                    onPress={() => {
-                      setIsLoading(true);
-                      setTimeout(() => {
-                        setIsLoading(false);
-                        setCurrentOrder({ id: 'ORD-001', item: 'Delivery', receiver: 'John Doe', contact: '+1 234 567 8900', rider: 'Mike Johnson', total: 85 });
-                        setCurrentScreen('home');
-                      }, 1500);
-                    }}
+                    style={[
+                      styles.primaryBtn,
+                      { backgroundColor: '#dc2626' },
+                      !isBookingEnabled && { opacity: 0.5 }
+                    ]}
+                    onPress={bookDelivery}
+                    disabled={!isBookingEnabled}
                   >
-                    <Text style={styles.primaryText}>Book Delivery - ₱0.00</Text>
+                    <Text style={styles.primaryText}>
+                      Book Delivery{showTotalAmount ? ` - ₱${totalAmount.toFixed(2)}` : ' - ₱0.00'}
+                    </Text>
                   </TouchableOpacity>
                 )}
                 {selectedService === 'tickets' && (
@@ -1040,15 +1483,25 @@ export default function SugoScreen() {
           })}
           <SectionCard>
             <Text style={{ fontWeight: '600', marginBottom: 8 }}>Payment Summary</Text>
-            <Row label="Base Amount" value="₱80.00" />
-            <Row label="Service Fee" value="₱5.00" />
-            <Row label="Total Amount" value="₱85.00" valueTint="#dc2626" />
+            <Row label="Base Amount" value={`₱${BASE_AMOUNT.toFixed(2)}`} />
+            <Row label="Service Fee" value={`₱${SERVICE_FEE.toFixed(2)}`} />
+            <Row label="Total Amount" value={`₱${totalAmount.toFixed(2)}`} valueTint="#dc2626" />
           </SectionCard>
           <TouchableOpacity
-            style={[styles.primaryBtn, { backgroundColor: '#dc2626' }]}
-            onPress={() => setShowPaymentModal(false)}
+            style={[
+              styles.primaryBtn,
+              { backgroundColor: '#dc2626' },
+              !isBookingEnabled && { opacity: 0.5 }
+            ]}
+            onPress={() => {
+              setShowPaymentModal(false);
+              bookDelivery();
+            }}
+            disabled={!isBookingEnabled}
           >
-            <Text style={styles.primaryText}>Book Delivery - ₱0.00</Text>
+            <Text style={styles.primaryText}>
+              Book Delivery{showTotalAmount ? ` - ₱${totalAmount.toFixed(2)}` : ' - ₱0.00'}
+            </Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -1056,19 +1509,22 @@ export default function SugoScreen() {
       <Modal visible={showOrderTracking} onClose={() => setShowOrderTracking(false)} title="Track Your Order">
         <View style={{ gap: 12 }}>
           <View style={{ backgroundColor: '#fee2e2', borderRadius: 12, padding: 12, gap: 8 }}>
-            <Text style={{ fontWeight: '600', color: '#111827' }}>Order #{currentOrder?.id || 'ORD-001'}</Text>
+            <Text style={{ fontWeight: '600', color: '#111827' }}>Order #{currentOrder?.order_number || currentOrder?.id || 'ORD-001'}</Text>
+            <Text style={{ color: '#6b7280', fontSize: 12 }}>Status: {currentOrder?.status || 'Pending'}</Text>
             <Text style={{ color: '#6b7280', fontSize: 12 }}>Estimated arrival: 15 mins</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Ionicons name="navigate" size={14} color="#dc2626" />
-              <Text style={{ color: '#6b7280', fontSize: 12 }}>Rider is on the way</Text>
+              <Text style={{ color: '#6b7280', fontSize: 12 }}>
+                {currentOrder?.rider ? 'Rider is on the way' : 'Looking for available rider...'}
+              </Text>
             </View>
           </View>
           {[
-            { title: 'Order Confirmed', completed: true },
-            { title: 'Preparing Order', completed: true },
-            { title: 'Order Picked Up', completed: true },
-            { title: 'Out for Delivery', completed: false },
-            { title: 'Delivered', completed: false },
+            { title: 'Order Confirmed', completed: currentOrder?.status !== 'pending' },
+            { title: 'Rider Assigned', completed: deliveryStatus?.is_assigned || false },
+            { title: 'Rider Accepted', completed: deliveryStatus?.is_accepted || false },
+            { title: 'Order Picked Up', completed: deliveryStatus?.is_picked_up || false },
+            { title: 'Delivered', completed: deliveryStatus?.is_completed || false },
           ].map((step, i) => (
             <View key={i} style={{ flexDirection: 'row', gap: 8 }}>
               <View style={{ width: 24, height: 24, borderRadius: 999, backgroundColor: step.completed ? '#16a34a' : '#e5e7eb', alignItems: 'center', justifyContent: 'center' }}>
@@ -1200,7 +1656,7 @@ export default function SugoScreen() {
 
       {/* Share Modal */}
       <Modal visible={showShare} onClose={() => setShowShare(false)}>
-        <ShareModal onClose={() => setShowShare(false)} orderNumber={currentOrder?.id} />
+        <ShareModal onClose={() => setShowShare(false)} orderNumber={currentOrder?.order_number || currentOrder?.id} />
       </Modal>
 
       {/* Toast - positioned at top */}
