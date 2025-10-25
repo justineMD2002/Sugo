@@ -320,3 +320,48 @@ export async function setDefaultAddress(userId: string, addressId: string): Prom
     };
   }
 }
+
+export interface UpdateProfileData {
+  full_name?: string;
+  phone_number?: string;
+  email?: string;
+}
+
+export async function updateUserProfile(userId: string, updateData: UpdateProfileData): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', userId);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'An unexpected error occurred while updating profile'
+    };
+  }
+}
+
+export async function changeUserPassword(newPassword: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'An unexpected error occurred while changing password'
+    };
+  }
+}

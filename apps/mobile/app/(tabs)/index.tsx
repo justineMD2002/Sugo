@@ -14,7 +14,7 @@ import SettingsModal from '@/components/sugo/SettingsModal';
 import ShareModal from '@/components/sugo/ShareModal';
 import SplashScreen from '@/components/sugo/SplashScreen';
 import Toast from '@/components/sugo/Toast';
-import { getCurrentUser, signInUserWithPhone, signOutUser, SignUpData, signUpUser, getUserProfile, UserProfile, getUserAddresses, Address, createAddress, updateAddress, deleteAddress, setDefaultAddress, CreateAddressData, UpdateAddressData } from '@/lib/auth';
+import { getCurrentUser, signInUserWithPhone, signOutUser, SignUpData, signUpUser, getUserProfile, UserProfile, getUserAddresses, Address, createAddress, updateAddress, deleteAddress, setDefaultAddress, CreateAddressData, UpdateAddressData, updateUserProfile, UpdateProfileData, changeUserPassword } from '@/lib/auth';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -91,6 +91,15 @@ export default function SugoScreen() {
   const [addressName, setAddressName] = useState('');
   const [fullAddress, setFullAddress] = useState('');
   const [isDefaultAddress, setIsDefaultAddress] = useState(false);
+
+  // Profile form state
+  const [editProfileName, setEditProfileName] = useState('');
+  const [editProfileEmail, setEditProfileEmail] = useState('');
+
+  // Password form state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
   // OTP and Auth states
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -566,6 +575,95 @@ export default function SugoScreen() {
     setShowEditAddress(true);
   };
 
+  // Profile update functions
+  const handleUpdateProfile = async () => {
+    if (!currentUser || !editProfileName.trim() || !editProfileEmail.trim()) {
+      showToastMessage('Please fill in all required fields', 'error');
+      return;
+    }
+
+    // Simple email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(editProfileEmail.trim())) {
+      showToastMessage('Please enter a valid email address', 'error');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const updateData: UpdateProfileData = {
+        full_name: editProfileName.trim(),
+        email: editProfileEmail.trim()
+      };
+
+      const result = await updateUserProfile(currentUser.id, updateData);
+      if (result.success) {
+        // Refresh profile data
+        const profileResult = await getUserProfile(currentUser.id);
+        if (profileResult.success && profileResult.profile) {
+          setUserProfile(profileResult.profile);
+        }
+
+        // Clear form and close modal
+        setEditProfileName('');
+        setEditProfileEmail('');
+        setShowEditProfile(false);
+        showToastMessage('Profile updated successfully', 'success');
+      } else {
+        showToastMessage(result.error || 'Failed to update profile', 'error');
+      }
+    } catch (error) {
+      showToastMessage('An error occurred while updating profile', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!currentPassword.trim() || !newPassword.trim() || !confirmNewPassword.trim()) {
+      showToastMessage('Please fill in all fields', 'error');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      showToastMessage('Password must be at least 6 characters', 'error');
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      showToastMessage('Passwords do not match', 'error');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const result = await changeUserPassword(newPassword);
+      if (result.success) {
+        // Clear form and close modal
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmNewPassword('');
+        setShowChangePassword(false);
+        showToastMessage('Password changed successfully', 'success');
+      } else {
+        showToastMessage(result.error || 'Failed to change password', 'error');
+      }
+    } catch (error) {
+      showToastMessage('An error occurred while changing password', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Function to pre-fill edit profile modal
+  const openEditProfileModal = () => {
+    if (userProfile) {
+      setEditProfileName(userProfile.full_name);
+      setEditProfileEmail(userProfile.email);
+    }
+    setShowEditProfile(true);
+  };
+
   
   const bottomItems = useMemo(() => {
     if (userType === 'rider') {
@@ -912,7 +1010,7 @@ export default function SugoScreen() {
                   <Row label="Email" value="mark.rider@email.com" />
                   <Row label="Vehicle" value="Motorcycle - ABC 1234" />
                 </SectionCard>
-                <TouchableOpacity style={[styles.secondaryBtn, { borderColor: '#dc2626' }]} onPress={() => setShowEditProfile(true)}>
+                <TouchableOpacity style={[styles.secondaryBtn, { borderColor: '#dc2626' }]} onPress={openEditProfileModal}>
                   <Text style={{ color: '#dc2626', fontWeight: '600' }}>Edit Profile</Text>
                 </TouchableOpacity>
               </ScrollView>
@@ -1077,7 +1175,7 @@ export default function SugoScreen() {
                   </View>
                 </SectionCard>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TouchableOpacity style={[styles.secondaryBtn, { flex: 1 }]} onPress={() => setShowEditProfile(true)}>
+                  <TouchableOpacity style={[styles.secondaryBtn, { flex: 1 }]} onPress={openEditProfileModal}>
                     <Ionicons name="pencil" size={18} color="#dc2626" />
                     <Text style={{ color: '#dc2626', fontWeight: '600' }}>Edit</Text>
                   </TouchableOpacity>
@@ -1326,23 +1424,21 @@ export default function SugoScreen() {
         <View style={{ gap: 12, marginBottom: 16 }}>
           <TextInput
             placeholder="Full Name"
-            defaultValue={userProfile?.full_name || ''}
-            style={styles.input}
-            placeholderTextColor="#9ca3af"
-          />
-          <TextInput
-            placeholder="Phone"
-            defaultValue={userProfile?.phone_number || ''}
+            value={editProfileName}
+            onChangeText={setEditProfileName}
             style={styles.input}
             placeholderTextColor="#9ca3af"
           />
           <TextInput
             placeholder="Email"
-            defaultValue={userProfile?.email || ''}
+            value={editProfileEmail}
+            onChangeText={setEditProfileEmail}
             style={styles.input}
             placeholderTextColor="#9ca3af"
+            keyboardType="email-address"
+            autoCapitalize="none"
           />
-          <TouchableOpacity style={styles.primaryBtn}>
+          <TouchableOpacity style={styles.primaryBtn} onPress={handleUpdateProfile}>
             <Text style={styles.primaryText}>Save Changes</Text>
           </TouchableOpacity>
         </View>
@@ -1350,10 +1446,31 @@ export default function SugoScreen() {
 
       <Modal visible={showChangePassword} onClose={() => setShowChangePassword(false)} title="Change Password">
         <View style={{ gap: 12, marginBottom: 16 }}>
-          <TextInput placeholder="Current Password" secureTextEntry style={styles.input} placeholderTextColor="#9ca3af" />
-          <TextInput placeholder="New Password" secureTextEntry style={styles.input} placeholderTextColor="#9ca3af" />
-          <TextInput placeholder="Confirm New Password" secureTextEntry style={styles.input} placeholderTextColor="#9ca3af" />
-          <TouchableOpacity style={styles.primaryBtn}>
+          <TextInput
+            placeholder="Current Password"
+            value={currentPassword}
+            onChangeText={setCurrentPassword}
+            secureTextEntry
+            style={styles.input}
+            placeholderTextColor="#9ca3af"
+          />
+          <TextInput
+            placeholder="New Password"
+            value={newPassword}
+            onChangeText={setNewPassword}
+            secureTextEntry
+            style={styles.input}
+            placeholderTextColor="#9ca3af"
+          />
+          <TextInput
+            placeholder="Confirm New Password"
+            value={confirmNewPassword}
+            onChangeText={setConfirmNewPassword}
+            secureTextEntry
+            style={styles.input}
+            placeholderTextColor="#9ca3af"
+          />
+          <TouchableOpacity style={styles.primaryBtn} onPress={handleChangePassword}>
             <Text style={styles.primaryText}>Change Password</Text>
           </TouchableOpacity>
         </View>
@@ -1436,7 +1553,7 @@ export default function SugoScreen() {
           onClose={() => setShowSettings(false)}
           onEditProfile={() => {
             setShowSettings(false);
-            setShowEditProfile(true);
+            openEditProfileModal();
           }}
           onChangePassword={() => {
             setShowSettings(false);
