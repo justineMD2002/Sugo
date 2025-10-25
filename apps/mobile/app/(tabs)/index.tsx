@@ -431,20 +431,54 @@ export default function SugoScreen() {
     setIsUploadingProfilePicture(true);
 
     try {
-      const result = await uploadProfilePicture(
-        currentUser.id,
-        userProfile?.avatar_url
-      );
+      // Step 1: Select image
+      const { selectProfilePicture } = await import('@/lib/profilePictureService');
+      const imageUri = await selectProfilePicture();
 
-      if (result.success && result.avatarUrl) {
-        // Update the local user profile state with the new avatar URL
-        setUserProfile(prev => prev ? { ...prev, avatar_url: result.avatarUrl } : null);
+      if (!imageUri) {
+        showToastMessage('No image selected', 'info');
+        return;
+      }
+
+      showToastMessage('Image selected, uploading...', 'info');
+
+      // Step 2: Simple upload using Supabase client
+      const { supabase } = await import('@/lib/supabase');
+
+      // Convert URI to blob
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+
+      // Upload to Supabase storage
+      const { data, error } = await supabase.storage
+        .from('avatars')
+        .upload(`${currentUser.id}/avatar.jpg`, blob, {
+          contentType: 'image/jpeg',
+          upsert: true,
+        });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(`${currentUser.id}/avatar.jpg`);
+
+      // Update user profile
+      const { updateUserAvatar } = await import('@/lib/userService');
+      const updateResult = await updateUserAvatar(currentUser.id, publicUrl);
+
+      if (updateResult.success) {
+        setUserProfile(prev => prev ? { ...prev, avatar_url: publicUrl } : null);
         showToastMessage('Profile picture updated successfully', 'success');
       } else {
-        showToastMessage(result.error || 'Failed to update profile picture', 'error');
+        throw new Error(updateResult.error || 'Failed to update profile');
       }
+
     } catch (error) {
-      showToastMessage('An unexpected error occurred while uploading profile picture', 'error');
+      showToastMessage('Upload error: ' + (error as Error).message, 'error');
     } finally {
       setIsUploadingProfilePicture(false);
     }

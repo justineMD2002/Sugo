@@ -47,7 +47,8 @@ export default function Header({
             <TouchableOpacity
               onPress={onProfilePicturePress}
               style={styles.profilePictureContainer}
-              disabled={!onProfilePicturePress}
+              activeOpacity={0.8}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <ProfileAvatar userProfile={userProfile} size={40} />
             </TouchableOpacity>
