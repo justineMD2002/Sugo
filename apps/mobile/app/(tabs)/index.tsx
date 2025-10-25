@@ -857,12 +857,8 @@ export default function SugoScreen() {
               <Header
                 title="New Request"
                 subtitle="Choose one"
-                showSearch
                 showNotifications
-                showSettings
-                onSearchPress={() => setShowSearch(true)}
                 onNotificationsPress={() => setShowNotifications(true)}
-                onSettingsPress={() => setShowSettings(true)}
                 notificationBadge
               >
                 <ServiceSelector value={selectedService as any} onChange={(s) => setSelectedService(s)} />
@@ -870,8 +866,22 @@ export default function SugoScreen() {
               <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
                 {selectedService === 'delivery' && (
                   <SectionCard title="Locations">
-                    <TextInput placeholder="Pickup Location" style={styles.underlinedInput} placeholderTextColor="#9ca3af" />
-                    <TextInput placeholder="Delivery Location" style={styles.underlinedInput} placeholderTextColor="#9ca3af" />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <Ionicons name="location" size={20} color="#dc2626" />
+                      <TextInput
+                        placeholder="Pickup Location"
+                        style={[styles.underlinedInput, { flex: 1 }]}
+                        placeholderTextColor="#9ca3af"
+                      />
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <Ionicons name="location" size={20} color="#16a34a" />
+                      <TextInput
+                        placeholder="Delivery Location"
+                        style={[styles.underlinedInput, { flex: 1 }]}
+                        placeholderTextColor="#9ca3af"
+                      />
+                    </View>
                   </SectionCard>
                 )}
                 {selectedService === 'tickets' ? (
