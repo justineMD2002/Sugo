@@ -15,15 +15,8 @@ export interface AuthResponse {
   error?: string;
 }
 
-/**
- * Signs up a new user with email and creates a corresponding profile in the users table
- * @param signUpData User registration data
- * @returns Promise with authentication result
- */
 export async function signUpUser(signUpData: SignUpData): Promise<AuthResponse> {
   try {
-    // Create user in auth.users with email and password
-    // The database trigger will automatically create the user profile
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: signUpData.email,
       password: signUpData.password,
@@ -45,7 +38,6 @@ export async function signUpUser(signUpData: SignUpData): Promise<AuthResponse> 
       return { success: false, error: 'Failed to create user account' };
     }
 
-    // User profile is created automatically by the database trigger
     return { success: true, user: authData.user };
   } catch (error) {
     return {
@@ -55,12 +47,6 @@ export async function signUpUser(signUpData: SignUpData): Promise<AuthResponse> 
   }
 }
 
-/**
- * Signs in a user with email and password
- * @param email User email
- * @param password User password
- * @returns Promise with authentication result
- */
 export async function signInUser(email: string, password: string): Promise<AuthResponse> {
   try {
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -69,12 +55,10 @@ export async function signInUser(email: string, password: string): Promise<AuthR
     });
 
     if (error) {
-      // Check for common authentication error messages and return a user-friendly message
       const errorMsg = error.message.toLowerCase();
       if (errorMsg.includes('invalid') || errorMsg.includes('credentials') || errorMsg.includes('password')) {
         return { success: false, error: 'Invalid credentials' };
       }
-      // Keep email confirmation error as-is for specific handling
       if (errorMsg.includes('email not confirmed')) {
         return { success: false, error: error.message };
       }
@@ -90,28 +74,18 @@ export async function signInUser(email: string, password: string): Promise<AuthR
   }
 }
 
-/**
- * Signs in a user with phone number and password
- * @param phoneNumber User phone number
- * @param password User password
- * @returns Promise with authentication result
- */
 export async function signInUserWithPhone(phoneNumber: string, password: string): Promise<AuthResponse> {
   try {
-    // First, find the user by phone number
     const { data: userProfile, error: profileError } = await supabase
       .from('users')
       .select('email')
       .eq('phone_number', phoneNumber)
       .single();
 
-    // Check for specific Supabase error codes
     if (profileError) {
-      // PGRST116 means 0 rows returned (user not found)
       if (profileError.code === 'PGRST116' || profileError.message?.includes('0 rows')) {
         return { success: false, error: 'Invalid credentials' };
       }
-      // Any other database error
       return { success: false, error: 'Invalid credentials' };
     }
 
@@ -119,7 +93,6 @@ export async function signInUserWithPhone(phoneNumber: string, password: string)
       return { success: false, error: 'Invalid credentials' };
     }
 
-    // Now sign in with the email and password
     return await signInUser(userProfile.email, password);
   } catch (error) {
     return {
@@ -129,10 +102,6 @@ export async function signInUserWithPhone(phoneNumber: string, password: string)
   }
 }
 
-/**
- * Signs out the current user
- * @returns Promise with sign out result
- */
 export async function signOutUser(): Promise<{ success: boolean; error?: string }> {
   try {
     const { error } = await supabase.auth.signOut();
@@ -150,10 +119,6 @@ export async function signOutUser(): Promise<{ success: boolean; error?: string 
   }
 }
 
-/**
- * Gets the current authenticated user
- * @returns Promise with current user or null
- */
 export async function getCurrentUser(): Promise<User | null> {
   try {
     const { data: { user } } = await supabase.auth.getUser();
@@ -161,5 +126,83 @@ export async function getCurrentUser(): Promise<User | null> {
   } catch (error) {
     console.error('Error getting current user:', error);
     return null;
+  }
+}
+
+export interface UserProfile {
+  id: string;
+  full_name: string;
+  email: string;
+  phone_number: string;
+  user_type: 'customer' | 'rider';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProfileResponse {
+  success: boolean;
+  profile?: UserProfile;
+  error?: string;
+}
+
+export interface Address {
+  id: string;
+  user_id: string;
+  address_name: string;
+  full_address: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AddressesResponse {
+  success: boolean;
+  addresses?: Address[];
+  error?: string;
+}
+
+export async function getUserProfile(userId: string): Promise<ProfileResponse> {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Profile not found' };
+      }
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, profile: data as UserProfile };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'An unexpected error occurred while fetching profile'
+    };
+  }
+}
+
+export async function getUserAddresses(userId: string): Promise<AddressesResponse> {
+  try {
+    const { data, error } = await supabase
+      .from('addresses')
+      .select('*')
+      .eq('user_id', userId)
+      .order('is_default', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, addresses: data as Address[] };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'An unexpected error occurred while fetching addresses'
+    };
   }
 }

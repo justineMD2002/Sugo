@@ -14,7 +14,7 @@ import SettingsModal from '@/components/sugo/SettingsModal';
 import ShareModal from '@/components/sugo/ShareModal';
 import SplashScreen from '@/components/sugo/SplashScreen';
 import Toast from '@/components/sugo/Toast';
-import { getCurrentUser, signInUserWithPhone, signOutUser, SignUpData, signUpUser } from '@/lib/auth';
+import { getCurrentUser, signInUserWithPhone, signOutUser, SignUpData, signUpUser, getUserProfile, UserProfile, getUserAddresses, Address } from '@/lib/auth';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -43,6 +43,9 @@ export default function SugoScreen() {
   const [workerService, setWorkerService] = useState<Service>('delivery');
   const [isLoading, setIsLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userAddresses, setUserAddresses] = useState<Address[]>([]);
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
 
   const [currentOrder, setCurrentOrder] = useState<any>(null);
   const [currentDelivery, setCurrentDelivery] = useState<any>(null);
@@ -197,6 +200,47 @@ export default function SugoScreen() {
     checkSession();
   }, []);
 
+  // Fetch profile data when user navigates to profile screen
+  useEffect(() => {
+    const fetchProfileData = async () => {
+      if (currentScreen === 'profile' && currentUser && (!userProfile || userAddresses.length === 0)) {
+        setIsProfileLoading(true);
+        try {
+          // Fetch both profile and addresses in parallel
+          const [profileResult, addressesResult] = await Promise.all([
+            getUserProfile(currentUser.id),
+            getUserAddresses(currentUser.id)
+          ]);
+
+          // Handle profile data
+          if (profileResult.success && profileResult.profile) {
+            setUserProfile(profileResult.profile);
+            console.log('Profile data loaded:', profileResult.profile);
+          } else {
+            console.error('Failed to load profile:', profileResult.error);
+            showToastMessage(profileResult.error || 'Failed to load profile', 'error');
+          }
+
+          // Handle addresses data
+          if (addressesResult.success && addressesResult.addresses) {
+            setUserAddresses(addressesResult.addresses);
+            console.log('Addresses loaded:', addressesResult.addresses);
+          } else {
+            console.error('Failed to load addresses:', addressesResult.error);
+            // Don't show toast for addresses error since it's not critical
+          }
+        } catch (error) {
+          console.error('Error fetching profile data:', error);
+          showToastMessage('An error occurred while loading profile', 'error');
+        } finally {
+          setIsProfileLoading(false);
+        }
+      }
+    };
+
+    fetchProfileData();
+  }, [currentScreen, currentUser, userProfile, userAddresses]);
+
   const handleSignup = () => {
     // Validate form fields
     if (!signupFullName.trim()) {
@@ -334,6 +378,8 @@ export default function SugoScreen() {
 
         // Clear any user-related state
         setCurrentUser(null);
+        setUserProfile(null);
+        setUserAddresses([]);
         setCurrentOrder(null);
         setCurrentDelivery(null);
         setMessages([]);
@@ -816,17 +862,33 @@ export default function SugoScreen() {
             </>
           ) : currentScreen === 'profile' ? (
             <>
-              <Header title="Juan Dela Cruz" subtitle="+63 912 345 6789" />
+              <Header
+                title={userProfile?.full_name || 'Loading...'}
+                subtitle={userProfile?.phone_number || '+63 912 345 6789'}
+              />
               <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
                 <SectionCard title="Personal Information">
-                  <Row label="Name" value="Juan Dela Cruz" />
-                  <Row label="Phone" value="+63 912 345 6789" />
-                  <Row label="Email" value="juan@email.com" />
+                  <Row label="Name" value={userProfile?.full_name || 'Loading...'} />
+                  <Row label="Phone" value={userProfile?.phone_number || '+63 912 345 6789'} />
+                  <Row label="Email" value={userProfile?.email || 'Loading...'} />
                 </SectionCard>
                 <SectionCard title="Saved Addresses">
                   <View style={{ gap: 12 }}>
-                    <AddressRow label="Home" address="123 Main Street, Barangay Lahug" isDefault />
-                    <AddressRow label="Office" address="456 IT Park, Cebu Business Park" />
+                    {userAddresses.length > 0 ? (
+                      userAddresses.map((address) => (
+                        <AddressRow
+                          key={address.id}
+                          label={address.address_name}
+                          address={address.full_address}
+                          isDefault={address.is_default}
+                        />
+                      ))
+                    ) : (
+                      <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                        <Ionicons name="location" size={32} color="#d1d5db" />
+                        <Text style={{ color: '#6b7280', marginTop: 8 }}>No saved addresses yet</Text>
+                      </View>
+                    )}
                   </View>
                 </SectionCard>
                 <SectionCard title="Payment Methods">
@@ -1084,9 +1146,24 @@ export default function SugoScreen() {
 
       <Modal visible={showEditProfile} onClose={() => setShowEditProfile(false)} title="Edit Profile">
         <View style={{ gap: 12, marginBottom: 16 }}>
-          <TextInput placeholder="Full Name" defaultValue={userType === 'rider' ? 'Mark Rider' : 'Juan Dela Cruz'} style={styles.input} placeholderTextColor="#9ca3af" />
-          <TextInput placeholder="Phone" defaultValue="+63 912 345 6789" style={styles.input} placeholderTextColor="#9ca3af" />
-          <TextInput placeholder="Email" defaultValue={userType === 'rider' ? 'mark@email.com' : 'juan@email.com'} style={styles.input} placeholderTextColor="#9ca3af" />
+          <TextInput
+            placeholder="Full Name"
+            defaultValue={userProfile?.full_name || ''}
+            style={styles.input}
+            placeholderTextColor="#9ca3af"
+          />
+          <TextInput
+            placeholder="Phone"
+            defaultValue={userProfile?.phone_number || ''}
+            style={styles.input}
+            placeholderTextColor="#9ca3af"
+          />
+          <TextInput
+            placeholder="Email"
+            defaultValue={userProfile?.email || ''}
+            style={styles.input}
+            placeholderTextColor="#9ca3af"
+          />
           <TouchableOpacity style={styles.primaryBtn}>
             <Text style={styles.primaryText}>Save Changes</Text>
           </TouchableOpacity>
