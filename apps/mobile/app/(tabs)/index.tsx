@@ -832,8 +832,8 @@ export default function SugoScreen() {
                 <SectionCard title="Payment Methods">
                   <View style={{ gap: 8 }}>
                     <PaymentRow label="Cash on Delivery" isDefault />
-                    <PaymentRow label="GCash" details="**** 1234" />
-                    <PaymentRow label="QRPH" details="**** 5678" />
+                    <PaymentRow label="GCash" details="**** 1234" disabled />
+                    <PaymentRow label="QRPH" details="**** 5678" disabled />
                   </View>
                 </SectionCard>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -1247,14 +1247,15 @@ function AddressRow({ label, address, isDefault }: { label: string; address: str
   );
 }
 
-function PaymentRow({ label, details, isDefault }: { label: string; details?: string; isDefault?: boolean }) {
+function PaymentRow({ label, details, isDefault, disabled }: { label: string; details?: string; isDefault?: boolean; disabled?: boolean }) {
   return (
-    <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 8 }}>
+    <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 8, opacity: disabled ? 0.4 : 1 }}>
       <Ionicons name="card" size={18} color={isDefault ? '#dc2626' : '#6b7280'} />
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center', marginBottom: 2 }}>
           <Text style={{ fontWeight: '600', color: '#111827' }}>{label}</Text>
           {isDefault && <View style={{ backgroundColor: '#ecfdf5', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}><Text style={{ fontSize: 10, color: '#16a34a', fontWeight: '600' }}>Default</Text></View>}
+          {disabled && <Text style={{ fontSize: 12, color: '#6b7280' }}>(Coming Soon)</Text>}
         </View>
         {details && <Text style={{ color: '#6b7280', fontSize: 12 }}>{details}</Text>}
       </View>
