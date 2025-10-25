@@ -1720,7 +1720,8 @@ export default function SugoScreen() {
 
       {/* Overlays */}
       <BottomBar items={bottomItems} current={currentScreen} onChange={(k) => setCurrentScreen(k as Screen)} />
-      {(isLoading || isUploadingProfilePicture) && <LoadingOverlay />}
+      {isLoading && <LoadingOverlay type="finding-rider" />}
+      {isUploadingProfilePicture && <LoadingOverlay type="uploading-picture" />}
     </View>
   );
 }

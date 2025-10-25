@@ -1,13 +1,53 @@
 import React from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 
-export default function LoadingOverlay() {
+type LoadingOverlayProps = {
+  type?: 'finding-rider' | 'uploading-picture' | 'general';
+  customTitle?: string;
+  customDescription?: string;
+};
+
+export default function LoadingOverlay({
+  type = 'finding-rider',
+  customTitle,
+  customDescription
+}: LoadingOverlayProps) {
+  const getTitle = () => {
+    if (customTitle) return customTitle;
+
+    switch (type) {
+      case 'finding-rider':
+        return 'Finding Rider';
+      case 'uploading-picture':
+        return 'Uploading Picture';
+      case 'general':
+        return 'Loading...';
+      default:
+        return 'Loading...';
+    }
+  };
+
+  const getDescription = () => {
+    if (customDescription) return customDescription;
+
+    switch (type) {
+      case 'finding-rider':
+        return 'Please wait while we match you with the best available rider...';
+      case 'uploading-picture':
+        return 'Please wait while we upload your profile picture...';
+      case 'general':
+        return 'Please wait...';
+      default:
+        return 'Please wait...';
+    }
+  };
+
   return (
     <View style={styles.overlay}>
       <View style={styles.card}>
         <ActivityIndicator size="large" color="#dc2626" />
-        <Text style={styles.title}>Finding Rider</Text>
-        <Text style={styles.desc}>Please wait while we match you with the best available rider...</Text>
+        <Text style={styles.title}>{getTitle()}</Text>
+        <Text style={styles.desc}>{getDescription()}</Text>
       </View>
     </View>
   );
