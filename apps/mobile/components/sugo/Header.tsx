@@ -71,7 +71,7 @@ export default function Header({
           )}
         </View>
       </View>
-      {children && <View style={styles.childrenContainer}>{children}</View>}
+      {children ? <View style={styles.childrenContainer}><>{children}</></View> : null}
     </View>
   );
 }
