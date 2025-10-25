@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { ReactNode } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -12,43 +12,48 @@ type HeaderProps = {
   onNotificationsPress?: () => void;
   onSettingsPress?: () => void;
   notificationBadge?: boolean;
+  children?: ReactNode;
 };
 
-export default function Header({ 
-  title, 
-  subtitle, 
+export default function Header({
+  title,
+  subtitle,
   showSearch,
   showNotifications,
   showSettings,
   onSearchPress,
   onNotificationsPress,
   onSettingsPress,
-  notificationBadge
+  notificationBadge,
+  children
 }: HeaderProps) {
   return (
     <View style={styles.container}>
-      <View style={styles.left}>
-        <Text style={styles.title}>{title}</Text>
-        {!!subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+      <View style={styles.topRow}>
+        <View style={styles.left}>
+          <Text style={styles.title}>{title}</Text>
+          {!!subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+        </View>
+        <View style={styles.right}>
+          {showSearch && (
+            <TouchableOpacity onPress={onSearchPress} style={styles.iconBtn}>
+              <Ionicons name="search" size={24} color="#fff" />
+            </TouchableOpacity>
+          )}
+          {showNotifications && (
+            <TouchableOpacity onPress={onNotificationsPress} style={styles.iconBtn}>
+              <Ionicons name="notifications" size={24} color="#fff" />
+              {notificationBadge && <View style={styles.badge} />}
+            </TouchableOpacity>
+          )}
+          {showSettings && (
+            <TouchableOpacity onPress={onSettingsPress} style={styles.iconBtn}>
+              <Ionicons name="settings" size={24} color="#fff" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
-      <View style={styles.right}>
-        {showSearch && (
-          <TouchableOpacity onPress={onSearchPress} style={styles.iconBtn}>
-            <Ionicons name="search" size={24} color="#fff" />
-          </TouchableOpacity>
-        )}
-        {showNotifications && (
-          <TouchableOpacity onPress={onNotificationsPress} style={styles.iconBtn}>
-            <Ionicons name="notifications" size={24} color="#fff" />
-            {notificationBadge && <View style={styles.badge} />}
-          </TouchableOpacity>
-        )}
-        {showSettings && (
-          <TouchableOpacity onPress={onSettingsPress} style={styles.iconBtn}>
-            <Ionicons name="settings" size={24} color="#fff" />
-          </TouchableOpacity>
-        )}
-      </View>
+      {children && <View style={styles.childrenContainer}>{children}</View>}
     </View>
   );
 }
@@ -58,9 +63,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#dc2626',
     paddingHorizontal: 16,
     paddingTop: 20,
-    paddingBottom: 16,
+    paddingBottom: 24,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
+  },
+  topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -95,6 +102,17 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: '#fbbf24',
+  },
+  childrenContainer: {
+    marginTop: 16,
+    backgroundColor: '#fbe9ea',
+    padding: 12,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
   },
 });
 

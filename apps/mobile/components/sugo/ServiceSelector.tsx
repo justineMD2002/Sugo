@@ -10,29 +10,32 @@ type Props = {
   disabled?: boolean;
 };
 
-const items: { key: Service; label: string; tint: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { key: 'delivery', label: 'Delivery', tint: '#dc2626', icon: 'cube' },
-  { key: 'plumbing', label: 'Plumbing', tint: '#2563eb', icon: 'construct' },
-  { key: 'aircon', label: 'Aircon', tint: '#0d9488', icon: 'snow' },
-  { key: 'electrician', label: 'Electrician', tint: '#d97706', icon: 'flash' },
+const items: { key: Service; label: string; tint: string; icon: keyof typeof Ionicons.glyphMap; isDisabled?: boolean }[] = [
+  { key: 'delivery', label: 'Delivery', tint: '#dc2626', icon: 'cube', isDisabled: false },
+  { key: 'plumbing', label: 'Plumbing', tint: '#2563eb', icon: 'construct', isDisabled: true },
+  { key: 'aircon', label: 'Aircon', tint: '#0d9488', icon: 'snow', isDisabled: true },
+  { key: 'electrician', label: 'Electrician', tint: '#d97706', icon: 'flash', isDisabled: true },
 ];
 
 export default function ServiceSelector({ value, onChange, disabled = false }: Props) {
   return (
     <View style={styles.grid}>
-      {items.map((it) => (
-        <TouchableOpacity
-          key={it.key}
-          style={styles.item}
-          onPress={() => !disabled && onChange(it.key)}
-          disabled={disabled}
-        >
-          <View style={[styles.iconBox, { backgroundColor: `${it.tint}22`, borderColor: value === it.key ? `${it.tint}66` : '#e5e7eb', borderWidth: 2 }]}>
-            <Ionicons name={it.icon} size={24} color={it.tint} />
-          </View>
-          <Text style={styles.text}>{it.label}</Text>
-        </TouchableOpacity>
-      ))}
+      {items.map((it) => {
+        const isItemDisabled = disabled || it.isDisabled;
+        return (
+          <TouchableOpacity
+            key={it.key}
+            style={[styles.item, isItemDisabled && { opacity: 0.4 }]}
+            onPress={() => !isItemDisabled && onChange(it.key)}
+            disabled={isItemDisabled}
+          >
+            <View style={[styles.iconBox, { backgroundColor: `${it.tint}22`, borderColor: value === it.key ? `${it.tint}66` : '#e5e7eb', borderWidth: 2 }]}>
+              <Ionicons name={it.icon} size={24} color={it.tint} />
+            </View>
+            <Text style={styles.text}>{it.label}</Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }

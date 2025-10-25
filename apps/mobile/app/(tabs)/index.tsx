@@ -854,8 +854,8 @@ export default function SugoScreen() {
             </>
           ) : (
             <>
-              <Header 
-                title="New Request" 
+              <Header
+                title="New Request"
                 subtitle="Choose one"
                 showSearch
                 showNotifications
@@ -864,11 +864,10 @@ export default function SugoScreen() {
                 onNotificationsPress={() => setShowNotifications(true)}
                 onSettingsPress={() => setShowSettings(true)}
                 notificationBadge
-              />
-              <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-                <SectionCard title="Services">
-                  <ServiceSelector value={selectedService as any} onChange={(s) => setSelectedService(s)} />
-                </SectionCard>
+              >
+                <ServiceSelector value={selectedService as any} onChange={(s) => setSelectedService(s)} />
+              </Header>
+              <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
                 {selectedService === 'delivery' && (
                   <SectionCard title="Locations">
                     <TextInput placeholder="Pickup Location" style={styles.underlinedInput} placeholderTextColor="#9ca3af" />
@@ -924,30 +923,58 @@ export default function SugoScreen() {
                 )}
                 {selectedService === 'delivery' && (
                   <SectionCard title="Payment Method">
-                    {['Cash', 'GCash', 'QRPH'].map((m) => (
-                      <TouchableOpacity key={m} style={styles.paymentRow} onPress={() => setSelectedPaymentMethod(m.toLowerCase())}>
-                        <View style={[styles.radio, selectedPaymentMethod === m.toLowerCase() ? { backgroundColor: '#dc2626' } : {}]} />
-                        <Text style={{ fontWeight: '600' }}>{m}</Text>
-                      </TouchableOpacity>
-                    ))}
+                    {['Cash', 'GCash', 'QRPH'].map((m) => {
+                      const isDisabled = m === 'GCash' || m === 'QRPH';
+                      return (
+                        <TouchableOpacity
+                          key={m}
+                          style={[styles.paymentRow, isDisabled && { opacity: 0.4 }]}
+                          onPress={() => !isDisabled && setSelectedPaymentMethod(m.toLowerCase())}
+                          disabled={isDisabled}
+                        >
+                          <View style={[styles.radio, selectedPaymentMethod === m.toLowerCase() ? { backgroundColor: '#dc2626' } : {}]} />
+                          <Text style={{ fontWeight: '600', flex: 1 }}>{m}</Text>
+                          {isDisabled && <Text style={{ fontSize: 12, color: '#6b7280' }}>(Coming Soon)</Text>}
+                        </TouchableOpacity>
+                      );
+                    })}
                   </SectionCard>
                 )}
-                <TouchableOpacity style={styles.primaryBtn} onPress={() => {
-                  setIsLoading(true);
-                  setTimeout(() => {
-                    setIsLoading(false);
-                    if (selectedService === 'delivery') {
-                      setCurrentOrder({ id: 'ORD-001', item: 'Delivery', receiver: 'John Doe', contact: '+1 234 567 8900', rider: 'Mike Johnson', total: 85 });
-                    } else if (selectedService === 'tickets') {
-                      setShowCreateTicket(true);
-                    } else {
-                      setCurrentOrder({ id: 'SRV-001', item: selectedService === 'plumbing' ? 'Plumbing' : selectedService === 'aircon' ? 'Aircon Repair' : 'Electrician', receiver: 'Home Service', contact: '+1 234 567 8900', rider: 'Assigned Pro', total: 85 });
-                    }
-                    setCurrentScreen('home');
-                  }, 1500);
-                }}>
-                  <Text style={styles.primaryText}>{selectedService === 'delivery' ? 'Book Delivery - ₱85.00' : selectedService === 'tickets' ? 'Create Ticket' : 'Book Service'}</Text>
-                </TouchableOpacity>
+                {selectedService === 'delivery' && (
+                  <TouchableOpacity
+                    style={[styles.primaryBtn, { backgroundColor: '#dc2626' }]}
+                    onPress={() => {
+                      setIsLoading(true);
+                      setTimeout(() => {
+                        setIsLoading(false);
+                        setCurrentOrder({ id: 'ORD-001', item: 'Delivery', receiver: 'John Doe', contact: '+1 234 567 8900', rider: 'Mike Johnson', total: 85 });
+                        setCurrentScreen('home');
+                      }, 1500);
+                    }}
+                  >
+                    <Text style={styles.primaryText}>Book Delivery - ₱0.00</Text>
+                  </TouchableOpacity>
+                )}
+                {selectedService === 'tickets' && (
+                  <TouchableOpacity style={styles.primaryBtn} onPress={() => setShowCreateTicket(true)}>
+                    <Text style={styles.primaryText}>Create Ticket</Text>
+                  </TouchableOpacity>
+                )}
+                {selectedService !== 'delivery' && selectedService !== 'tickets' && (
+                  <TouchableOpacity
+                    style={styles.primaryBtn}
+                    onPress={() => {
+                      setIsLoading(true);
+                      setTimeout(() => {
+                        setIsLoading(false);
+                        setCurrentOrder({ id: 'SRV-001', item: selectedService === 'plumbing' ? 'Plumbing' : selectedService === 'aircon' ? 'Aircon Repair' : 'Electrician', receiver: 'Home Service', contact: '+1 234 567 8900', rider: 'Assigned Pro', total: 85 });
+                        setCurrentScreen('home');
+                      }, 1500);
+                    }}
+                  >
+                    <Text style={styles.primaryText}>Book Service</Text>
+                  </TouchableOpacity>
+                )}
               </ScrollView>
             </>
           )}
@@ -986,20 +1013,32 @@ export default function SugoScreen() {
 
       <Modal visible={showPaymentModal} onClose={() => setShowPaymentModal(false)} title="Payment Method">
         <View style={{ gap: 12, marginBottom: 16 }}>
-          {['Cash', 'GCash', 'QRPH'].map((m) => (
-            <TouchableOpacity key={m} style={[styles.paymentRow, { paddingVertical: 12 }]} onPress={() => setSelectedPaymentMethod(m.toLowerCase())}>
-              <View style={[styles.radio, selectedPaymentMethod === m.toLowerCase() ? { backgroundColor: '#dc2626' } : {}]} />
-              <Text style={{ fontWeight: '600', flex: 1 }}>{m}</Text>
-            </TouchableOpacity>
-          ))}
+          {['Cash', 'GCash', 'QRPH'].map((m) => {
+            const isDisabled = m === 'GCash' || m === 'QRPH';
+            return (
+              <TouchableOpacity
+                key={m}
+                style={[styles.paymentRow, { paddingVertical: 12, opacity: isDisabled ? 0.4 : 1 }]}
+                onPress={() => !isDisabled && setSelectedPaymentMethod(m.toLowerCase())}
+                disabled={isDisabled}
+              >
+                <View style={[styles.radio, selectedPaymentMethod === m.toLowerCase() ? { backgroundColor: '#dc2626' } : {}]} />
+                <Text style={{ fontWeight: '600', flex: 1 }}>{m}</Text>
+                {isDisabled && <Text style={{ fontSize: 12, color: '#6b7280' }}>(Coming Soon)</Text>}
+              </TouchableOpacity>
+            );
+          })}
           <SectionCard>
             <Text style={{ fontWeight: '600', marginBottom: 8 }}>Payment Summary</Text>
             <Row label="Base Amount" value="₱80.00" />
             <Row label="Service Fee" value="₱5.00" />
             <Row label="Total Amount" value="₱85.00" valueTint="#dc2626" />
           </SectionCard>
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => setShowPaymentModal(false)}>
-            <Text style={styles.primaryText}>{selectedPaymentMethod === 'cash' ? 'Place Order' : 'Pay Now'}</Text>
+          <TouchableOpacity
+            style={[styles.primaryBtn, { backgroundColor: '#dc2626' }]}
+            onPress={() => setShowPaymentModal(false)}
+          >
+            <Text style={styles.primaryText}>Book Delivery - ₱0.00</Text>
           </TouchableOpacity>
         </View>
       </Modal>
