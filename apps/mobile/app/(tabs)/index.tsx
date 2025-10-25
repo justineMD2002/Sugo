@@ -14,9 +14,9 @@ import SettingsModal from '@/components/sugo/SettingsModal';
 import ShareModal from '@/components/sugo/ShareModal';
 import SplashScreen from '@/components/sugo/SplashScreen';
 import Toast from '@/components/sugo/Toast';
-import { signInUserWithPhone, SignUpData, signUpUser } from '@/lib/auth';
+import { getCurrentUser, signInUserWithPhone, signOutUser, SignUpData, signUpUser } from '@/lib/auth';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type Screen = 'splash' | 'login' | 'signup' | 'password' | 'otp' | 'home' | 'orders' | 'profile' | 'deliveries' | 'earnings';
@@ -42,6 +42,7 @@ export default function SugoScreen() {
   const [selectedService, setSelectedService] = useState<Service>('delivery');
   const [workerService, setWorkerService] = useState<Service>('delivery');
   const [isLoading, setIsLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   const [currentOrder, setCurrentOrder] = useState<any>(null);
   const [currentDelivery, setCurrentDelivery] = useState<any>(null);
@@ -164,6 +165,38 @@ export default function SugoScreen() {
     setShowToast(true);
   };
 
+  // Check for existing session on app start
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const user = await getCurrentUser();
+
+        if (user) {
+          // User is already logged in
+          setCurrentUser(user);
+
+          // Auto-navigate to home after splash screen delay
+          setTimeout(() => {
+            setCurrentScreen('home');
+          }, 2000); // 2 second splash screen
+        } else {
+          // No active session, show login screen
+          setTimeout(() => {
+            setCurrentScreen('login');
+          }, 2000);
+        }
+      } catch (error) {
+        console.error('Error checking session:', error);
+        // On error, redirect to login
+        setTimeout(() => {
+          setCurrentScreen('login');
+        }, 2000);
+      }
+    };
+
+    checkSession();
+  }, []);
+
   const handleSignup = () => {
     // Validate form fields
     if (!signupFullName.trim()) {
@@ -223,17 +256,16 @@ export default function SugoScreen() {
       const result = await signUpUser(signupData);
       
       if (result.success) {
-        showToastMessage('Account created successfully! Please check your email.', 'success');
         // Clear form fields
         setSignupFullName('');
         setSignupEmail('');
         setSignupPhoneNumber('');
         setSignupPassword('');
         setSignupConfirmPassword('');
-        // Navigate to login screen
-        setTimeout(() => {
-          setCurrentScreen('login');
-        }, 2000);
+
+        showToastMessage('Account created successfully! Please check your email.', 'success');
+        // Navigate to login screen immediately
+        setCurrentScreen('login');
       } else {
         showToastMessage(result.error || 'Failed to create account', 'error');
       }
@@ -250,27 +282,29 @@ export default function SugoScreen() {
       showToastMessage('Please enter your phone number', 'error');
       return;
     }
-    
+
     if (!loginPassword.trim()) {
       showToastMessage('Please enter your password', 'error');
       return;
     }
 
     setIsLoading(true);
-    
+
     try {
       const result = await signInUserWithPhone(loginPhoneNumber.trim(), loginPassword);
-      
+
       if (result.success) {
-        showToastMessage('Login successful!', 'success');
+        // Store the authenticated user
+        setCurrentUser(result.user);
+
         // Clear form fields
         setLoginPhoneNumber('');
         setLoginPassword('');
         setEmailNotConfirmed(false);
-        // Navigate to home screen
-        setTimeout(() => {
-          setCurrentScreen('home');
-        }, 1000);
+
+        showToastMessage('Login successful!', 'success');
+        // Navigate to home screen immediately
+        setCurrentScreen('home');
       } else {
         // Check if the error is specifically about email confirmation
         if (result.error?.includes('Email not confirmed')) {
@@ -283,6 +317,39 @@ export default function SugoScreen() {
     } catch (error) {
       showToastMessage('An unexpected error occurred', 'error');
       setEmailNotConfirmed(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    setIsLoading(true);
+
+    try {
+      const result = await signOutUser();
+
+      if (result.success) {
+        // Close the logout confirmation modal
+        setShowLogoutConfirm(false);
+
+        // Clear any user-related state
+        setCurrentUser(null);
+        setCurrentOrder(null);
+        setCurrentDelivery(null);
+        setMessages([]);
+
+        // Show success message
+        showToastMessage('Logged out successfully', 'success');
+
+        // Navigate to login screen after a brief delay
+        setTimeout(() => {
+          setCurrentScreen('login');
+        }, 1000);
+      } else {
+        showToastMessage(result.error || 'Failed to logout', 'error');
+      }
+    } catch (error) {
+      showToastMessage('An unexpected error occurred during logout', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -330,6 +397,7 @@ export default function SugoScreen() {
                 value={loginPhoneNumber}
                 onChangeText={setLoginPhoneNumber}
                 keyboardType="phone-pad"
+                editable={!isLoading}
               />
               <TextInput
                 placeholder="Password"
@@ -338,31 +406,44 @@ export default function SugoScreen() {
                 style={styles.input}
                 value={loginPassword}
                 onChangeText={setLoginPassword}
+                editable={!isLoading}
               />
               {emailNotConfirmed && (
                 <Text style={styles.errorText}>Email not confirmed. Please check email.</Text>
               )}
-              <TouchableOpacity style={styles.primaryBtn} onPress={handleLogin} disabled={isLoading}>
+              <TouchableOpacity
+                style={[styles.primaryBtn, isLoading && { opacity: 0.6 }]}
+                onPress={handleLogin}
+                disabled={isLoading}
+              >
                 <Text style={styles.primaryText}>{isLoading ? 'Logging in...' : 'Log in'}</Text>
               </TouchableOpacity>
             </View>
             <View style={{ alignItems: 'center' }}>
-              <TouchableOpacity onPress={() => setCurrentScreen('signup')}>
-                <Text style={{ color: '#dc2626', fontWeight: '600' }}>Don't have an account? Sign up</Text>
+              <TouchableOpacity onPress={() => setCurrentScreen('signup')} disabled={isLoading}>
+                <Text style={{ color: '#dc2626', fontWeight: '600', opacity: isLoading ? 0.4 : 1 }}>Don't have an account? Sign up</Text>
               </TouchableOpacity>
             </View>
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-              <TouchableOpacity style={[styles.segment, userType === 'customer' ? styles.segmentActive : undefined]} onPress={() => setUserType('customer')}>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, opacity: isLoading ? 0.4 : 1 }}>
+              <TouchableOpacity
+                style={[styles.segment, userType === 'customer' ? styles.segmentActive : undefined]}
+                onPress={() => setUserType('customer')}
+                disabled={isLoading}
+              >
                 <Text style={[styles.segmentText, userType === 'customer' ? styles.segmentTextActive : undefined]}>Customer</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.segment, userType === 'rider' ? styles.segmentActive : undefined]} onPress={() => setUserType('rider')}>
+              <TouchableOpacity
+                style={[styles.segment, userType === 'rider' ? styles.segmentActive : undefined]}
+                onPress={() => setUserType('rider')}
+                disabled={isLoading}
+              >
                 <Text style={[styles.segmentText, userType === 'rider' ? styles.segmentTextActive : undefined]}>Worker</Text>
               </TouchableOpacity>
             </View>
             {userType === 'rider' && (
-              <View style={{ gap: 8 }}>
+              <View style={{ gap: 8, opacity: isLoading ? 0.4 : 1 }}>
                 <Text style={{ fontSize: 12, color: '#6b7280', fontWeight: '600' }}>Select your service</Text>
-                <ServiceSelector value={workerService as any} onChange={(s) => setWorkerService(s)} />
+                <ServiceSelector value={workerService as any} onChange={(s) => setWorkerService(s)} disabled={isLoading} />
               </View>
             )}
           </View>
@@ -384,6 +465,7 @@ export default function SugoScreen() {
               style={styles.input}
               value={signupFullName}
               onChangeText={setSignupFullName}
+              editable={!isLoading}
             />
             <TextInput
               placeholder="Phone Number"
@@ -392,6 +474,7 @@ export default function SugoScreen() {
               value={signupPhoneNumber}
               onChangeText={setSignupPhoneNumber}
               keyboardType="phone-pad"
+              editable={!isLoading}
             />
             <TextInput
               placeholder="Email Address"
@@ -401,20 +484,40 @@ export default function SugoScreen() {
               onChangeText={setSignupEmail}
               keyboardType="email-address"
               autoCapitalize="none"
+              editable={!isLoading}
             />
             {userType === 'rider' && (
-              <View style={{ gap: 8 }}>
-                <TextInput placeholder="Vehicle Brand and Model" placeholderTextColor="#9ca3af" style={styles.input} />
-                <TextInput placeholder="Vehicle Color" placeholderTextColor="#9ca3af" style={styles.input} />
-                <TextInput placeholder="Plate Number" placeholderTextColor="#9ca3af" style={styles.input} />
+              <View style={{ gap: 8, opacity: isLoading ? 0.4 : 1 }}>
+                <TextInput
+                  placeholder="Vehicle Brand and Model"
+                  placeholderTextColor="#9ca3af"
+                  style={styles.input}
+                  editable={!isLoading}
+                />
+                <TextInput
+                  placeholder="Vehicle Color"
+                  placeholderTextColor="#9ca3af"
+                  style={styles.input}
+                  editable={!isLoading}
+                />
+                <TextInput
+                  placeholder="Plate Number"
+                  placeholderTextColor="#9ca3af"
+                  style={styles.input}
+                  editable={!isLoading}
+                />
               </View>
             )}
-            <TouchableOpacity style={styles.primaryBtn} onPress={handleSignup} disabled={isLoading}>
-              <Text style={styles.primaryText}>Proceed</Text>
+            <TouchableOpacity
+              style={[styles.primaryBtn, isLoading && { opacity: 0.6 }]}
+              onPress={handleSignup}
+              disabled={isLoading}
+            >
+              <Text style={styles.primaryText}>{isLoading ? 'Creating Account...' : 'Proceed'}</Text>
             </TouchableOpacity>
             <View style={{ alignItems: 'center', marginTop: 8 }}>
-              <TouchableOpacity onPress={() => setCurrentScreen('login')}>
-                <Text style={{ color: '#dc2626', fontWeight: '600' }}>Already have an account? Log in</Text>
+              <TouchableOpacity onPress={() => setCurrentScreen('login')} disabled={isLoading}>
+                <Text style={{ color: '#dc2626', fontWeight: '600', opacity: isLoading ? 0.4 : 1 }}>Already have an account? Log in</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -440,6 +543,7 @@ export default function SugoScreen() {
               value={signupPassword}
               onChangeText={setSignupPassword}
               secureTextEntry
+              editable={!isLoading}
             />
             <TextInput
               placeholder="Confirm Password"
@@ -448,13 +552,18 @@ export default function SugoScreen() {
               value={signupConfirmPassword}
               onChangeText={setSignupConfirmPassword}
               secureTextEntry
+              editable={!isLoading}
             />
-            <TouchableOpacity style={styles.primaryBtn} onPress={handlePasswordSignup} disabled={isLoading}>
+            <TouchableOpacity
+              style={[styles.primaryBtn, isLoading && { opacity: 0.6 }]}
+              onPress={handlePasswordSignup}
+              disabled={isLoading}
+            >
               <Text style={styles.primaryText}>{isLoading ? 'Creating Account...' : 'Create Account'}</Text>
             </TouchableOpacity>
             <View style={{ alignItems: 'center', marginTop: 8 }}>
-              <TouchableOpacity onPress={() => setCurrentScreen('signup')}>
-                <Text style={{ color: '#6b7280', fontWeight: '600' }}>Back</Text>
+              <TouchableOpacity onPress={() => setCurrentScreen('signup')} disabled={isLoading}>
+                <Text style={{ color: '#6b7280', fontWeight: '600', opacity: isLoading ? 0.4 : 1 }}>Back</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -949,7 +1058,7 @@ export default function SugoScreen() {
       <Modal visible={showLogoutConfirm} onClose={() => setShowLogoutConfirm(false)} title="Logout">
         <Text style={{ color: '#6b7280', marginBottom: 16 }}>Are you sure you want to logout?</Text>
         <View style={{ gap: 8 }}>
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => { setShowLogoutConfirm(false); setCurrentScreen('login'); }}>
+          <TouchableOpacity style={styles.primaryBtn} onPress={handleLogout}>
             <Text style={styles.primaryText}>Yes, Logout</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.secondaryBtn} onPress={() => setShowLogoutConfirm(false)}>
@@ -1019,7 +1128,7 @@ export default function SugoScreen() {
 
       {/* Settings Modal */}
       <Modal visible={showSettings} onClose={() => setShowSettings(false)}>
-        <SettingsModal 
+        <SettingsModal
           onClose={() => setShowSettings(false)}
           onEditProfile={() => {
             setShowSettings(false);
@@ -1032,6 +1141,10 @@ export default function SugoScreen() {
           onHelp={() => {
             setShowSettings(false);
             setShowHelp(true);
+          }}
+          onLogout={() => {
+            setShowSettings(false);
+            setShowLogoutConfirm(true);
           }}
         />
       </Modal>

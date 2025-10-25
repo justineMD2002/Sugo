@@ -69,6 +69,15 @@ export async function signInUser(email: string, password: string): Promise<AuthR
     });
 
     if (error) {
+      // Check for common authentication error messages and return a user-friendly message
+      const errorMsg = error.message.toLowerCase();
+      if (errorMsg.includes('invalid') || errorMsg.includes('credentials') || errorMsg.includes('password')) {
+        return { success: false, error: 'Invalid credentials' };
+      }
+      // Keep email confirmation error as-is for specific handling
+      if (errorMsg.includes('email not confirmed')) {
+        return { success: false, error: error.message };
+      }
       return { success: false, error: error.message };
     }
 
@@ -96,8 +105,18 @@ export async function signInUserWithPhone(phoneNumber: string, password: string)
       .eq('phone_number', phoneNumber)
       .single();
 
-    if (profileError || !userProfile) {
-      return { success: false, error: 'User with this phone number not found' };
+    // Check for specific Supabase error codes
+    if (profileError) {
+      // PGRST116 means 0 rows returned (user not found)
+      if (profileError.code === 'PGRST116' || profileError.message?.includes('0 rows')) {
+        return { success: false, error: 'Invalid credentials' };
+      }
+      // Any other database error
+      return { success: false, error: 'Invalid credentials' };
+    }
+
+    if (!userProfile) {
+      return { success: false, error: 'Invalid credentials' };
     }
 
     // Now sign in with the email and password
@@ -105,7 +124,7 @@ export async function signInUserWithPhone(phoneNumber: string, password: string)
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'An unexpected error occurred during sign in'
+      error: 'Invalid credentials'
     };
   }
 }

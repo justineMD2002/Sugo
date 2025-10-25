@@ -7,9 +7,10 @@ type SettingsModalProps = {
   onEditProfile?: () => void;
   onChangePassword?: () => void;
   onHelp?: () => void;
+  onLogout?: () => void;
 };
 
-export default function SettingsModal({ onClose, onEditProfile, onChangePassword, onHelp }: SettingsModalProps) {
+export default function SettingsModal({ onClose, onEditProfile, onChangePassword, onHelp, onLogout }: SettingsModalProps) {
   const [settings, setSettings] = useState({
     notifications: true,
     location: true,
@@ -101,6 +102,14 @@ export default function SettingsModal({ onClose, onEditProfile, onChangePassword
             <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
           </TouchableOpacity>
         </View>
+
+        {/* Logout */}
+        <View style={styles.section}>
+          <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
+            <Ionicons name="log-out" size={20} color="#dc2626" />
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </View>
   );
@@ -189,5 +198,22 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: '#6b7280',
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    backgroundColor: '#fef2f2',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  logoutText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#dc2626',
   },
 });

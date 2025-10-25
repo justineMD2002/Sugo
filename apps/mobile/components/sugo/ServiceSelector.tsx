@@ -7,6 +7,7 @@ type Service = 'delivery' | 'plumbing' | 'aircon' | 'electrician';
 type Props = {
   value: Service;
   onChange: (s: Service) => void;
+  disabled?: boolean;
 };
 
 const items: { key: Service; label: string; tint: string; icon: keyof typeof Ionicons.glyphMap }[] = [
@@ -16,11 +17,16 @@ const items: { key: Service; label: string; tint: string; icon: keyof typeof Ion
   { key: 'electrician', label: 'Electrician', tint: '#d97706', icon: 'flash' },
 ];
 
-export default function ServiceSelector({ value, onChange }: Props) {
+export default function ServiceSelector({ value, onChange, disabled = false }: Props) {
   return (
     <View style={styles.grid}>
       {items.map((it) => (
-        <TouchableOpacity key={it.key} style={styles.item} onPress={() => onChange(it.key)}>
+        <TouchableOpacity
+          key={it.key}
+          style={styles.item}
+          onPress={() => !disabled && onChange(it.key)}
+          disabled={disabled}
+        >
           <View style={[styles.iconBox, { backgroundColor: `${it.tint}22`, borderColor: value === it.key ? `${it.tint}66` : '#e5e7eb', borderWidth: 2 }]}>
             <Ionicons name={it.icon} size={24} color={it.tint} />
           </View>
