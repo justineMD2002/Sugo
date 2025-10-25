@@ -1,6 +1,8 @@
 import React, { ReactNode } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { UserProfile } from '@/lib/userService';
+import ProfileAvatar from './ProfileAvatar';
 
 type HeaderProps = {
   title: string;
@@ -8,9 +10,12 @@ type HeaderProps = {
   showSearch?: boolean;
   showNotifications?: boolean;
   showSettings?: boolean;
+  showProfilePicture?: boolean;
+  userProfile?: UserProfile | null;
   onSearchPress?: () => void;
   onNotificationsPress?: () => void;
   onSettingsPress?: () => void;
+  onProfilePicturePress?: () => void;
   notificationBadge?: boolean;
   children?: ReactNode;
 };
@@ -21,9 +26,12 @@ export default function Header({
   showSearch,
   showNotifications,
   showSettings,
+  showProfilePicture,
+  userProfile,
   onSearchPress,
   onNotificationsPress,
   onSettingsPress,
+  onProfilePicturePress,
   notificationBadge,
   children
 }: HeaderProps) {
@@ -35,6 +43,15 @@ export default function Header({
           {!!subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
         </View>
         <View style={styles.right}>
+          {showProfilePicture && (
+            <TouchableOpacity
+              onPress={onProfilePicturePress}
+              style={styles.profilePictureContainer}
+              disabled={!onProfilePicturePress}
+            >
+              <ProfileAvatar userProfile={userProfile} size={40} />
+            </TouchableOpacity>
+          )}
           {showSearch && (
             <TouchableOpacity onPress={onSearchPress} style={styles.iconBtn}>
               <Ionicons name="search" size={24} color="#fff" />
@@ -102,6 +119,9 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: '#fbbf24',
+  },
+  profilePictureContainer: {
+    padding: 2,
   },
   childrenContainer: {
     marginTop: 16,

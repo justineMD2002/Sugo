@@ -15,6 +15,7 @@ import ShareModal from '@/components/sugo/ShareModal';
 import SplashScreen from '@/components/sugo/SplashScreen';
 import Toast from '@/components/sugo/Toast';
 import { getCurrentUser, signInUserWithPhone, signOutUser, SignUpData, signUpUser, getUserProfile, UserProfile, getUserAddresses, Address, createAddress, updateAddress, deleteAddress, setDefaultAddress, CreateAddressData, UpdateAddressData, updateUserProfile, UpdateProfileData, changeUserPassword } from '@/lib/auth';
+import { uploadProfilePicture } from '@/lib/profilePictureService';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -46,6 +47,7 @@ export default function SugoScreen() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [userAddresses, setUserAddresses] = useState<Address[]>([]);
   const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const [isUploadingProfilePicture, setIsUploadingProfilePicture] = useState(false);
 
   const [currentOrder, setCurrentOrder] = useState<any>(null);
   const [currentDelivery, setCurrentDelivery] = useState<any>(null);
@@ -417,6 +419,34 @@ export default function SugoScreen() {
       showToastMessage('An unexpected error occurred during logout', 'error');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleProfilePictureUpload = async () => {
+    if (!currentUser) {
+      showToastMessage('You must be logged in to update your profile picture', 'error');
+      return;
+    }
+
+    setIsUploadingProfilePicture(true);
+
+    try {
+      const result = await uploadProfilePicture(
+        currentUser.id,
+        userProfile?.avatar_url
+      );
+
+      if (result.success && result.avatarUrl) {
+        // Update the local user profile state with the new avatar URL
+        setUserProfile(prev => prev ? { ...prev, avatar_url: result.avatarUrl } : null);
+        showToastMessage('Profile picture updated successfully', 'success');
+      } else {
+        showToastMessage(result.error || 'Failed to update profile picture', 'error');
+      }
+    } catch (error) {
+      showToastMessage('An unexpected error occurred while uploading profile picture', 'error');
+    } finally {
+      setIsUploadingProfilePicture(false);
     }
   };
 
@@ -1129,6 +1159,9 @@ export default function SugoScreen() {
               <Header
                 title={userProfile?.full_name || 'Loading...'}
                 subtitle={userProfile?.phone_number || '+63 912 345 6789'}
+                showProfilePicture
+                userProfile={userProfile}
+                onProfilePicturePress={handleProfilePictureUpload}
               />
               <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
                 <SectionCard title="Personal Information">
@@ -1653,7 +1686,7 @@ export default function SugoScreen() {
 
       {/* Overlays */}
       <BottomBar items={bottomItems} current={currentScreen} onChange={(k) => setCurrentScreen(k as Screen)} />
-      {isLoading && <LoadingOverlay />}
+      {(isLoading || isUploadingProfilePicture) && <LoadingOverlay />}
     </View>
   );
 }

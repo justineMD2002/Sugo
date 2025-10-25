@@ -135,6 +135,7 @@ export interface UserProfile {
   email: string;
   phone_number: string;
   user_type: 'customer' | 'rider';
+  avatar_url?: string;
   created_at: string;
   updated_at: string;
 }
