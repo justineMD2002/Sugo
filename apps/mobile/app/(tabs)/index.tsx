@@ -7,6 +7,7 @@ import HelpModal from '@/components/sugo/HelpModal';
 import LoadingOverlay from '@/components/sugo/LoadingOverlay';
 import Modal from '@/components/sugo/Modal';
 import NotificationsModal from '@/components/sugo/NotificationsModal';
+import ProfilePictureModal from '@/components/sugo/ProfilePictureModal';
 import SearchModal from '@/components/sugo/SearchModal';
 import SectionCard from '@/components/sugo/SectionCard';
 import ServiceSelector from '@/components/sugo/ServiceSelector';
@@ -83,6 +84,7 @@ export default function SugoScreen() {
   const [showFilter, setShowFilter] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [showProfilePictureModal, setShowProfilePictureModal] = useState(false);
 
   // Address CRUD state
   const [showAddAddress, setShowAddAddress] = useState(false);
@@ -422,6 +424,14 @@ export default function SugoScreen() {
     }
   };
 
+  const handleProfilePicturePress = () => {
+    if (userProfile?.avatar_url) {
+      setShowProfilePictureModal(true);
+    } else {
+      handleProfilePictureUpload();
+    }
+  };
+
   const handleProfilePictureUpload = async () => {
     if (!currentUser) {
       showToastMessage('You must be logged in to update your profile picture', 'error');
@@ -429,6 +439,7 @@ export default function SugoScreen() {
     }
 
     setIsUploadingProfilePicture(true);
+    setShowProfilePictureModal(false);
 
     try {
       // Step 1: Select image
@@ -442,7 +453,34 @@ export default function SugoScreen() {
 
       showToastMessage('Image selected, uploading...', 'info');
 
-      // Step 2: Simple upload using Supabase client
+      // Step 2: Delete old profile picture if it exists
+      if (userProfile?.avatar_url) {
+        try {
+          const { supabase } = await import('@/lib/supabase');
+
+          // Extract file path from the Supabase URL
+          // URL format: https://project_id.supabase.co/storage/v1/object/public/avatars/user_id/avatar.jpg
+          const urlParts = userProfile.avatar_url.split('/');
+          const fileName = urlParts[urlParts.length - 1]; // avatar.jpg
+          const userId = urlParts[urlParts.length - 2];   // user_id
+          const filePath = `${userId}/${fileName}`;
+
+          // Delete old avatar from storage
+          const { error: deleteError } = await supabase.storage
+            .from('avatars')
+            .remove([filePath]);
+
+          if (deleteError) {
+            console.error('Failed to delete old profile picture:', deleteError);
+            showToastMessage('Warning: Could not delete old profile picture', 'info');
+          }
+        } catch (deleteError) {
+          console.error('Error deleting old profile picture:', deleteError);
+          showToastMessage('Warning: Error deleting old profile picture', 'info');
+        }
+      }
+
+      // Step 3: Upload new image using Supabase client
       const { supabase } = await import('@/lib/supabase');
 
       // Convert URI to blob
@@ -450,7 +488,7 @@ export default function SugoScreen() {
       const blob = await response.blob();
 
       // Upload to Supabase storage
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from('avatars')
         .upload(`${currentUser.id}/avatar.jpg`, blob, {
           contentType: 'image/jpeg',
@@ -1195,7 +1233,7 @@ export default function SugoScreen() {
                 subtitle={userProfile?.phone_number || '+63 912 345 6789'}
                 showProfilePicture
                 userProfile={userProfile}
-                onProfilePicturePress={handleProfilePictureUpload}
+                onProfilePicturePress={handleProfilePicturePress}
               />
               <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
                 <SectionCard title="Personal Information">
@@ -1636,6 +1674,15 @@ export default function SugoScreen() {
           }}
         />
       </Modal>
+
+      {/* Profile Picture Modal */}
+      <ProfilePictureModal
+        visible={showProfilePictureModal}
+        onClose={() => setShowProfilePictureModal(false)}
+        imageUrl={userProfile?.avatar_url}
+        onReplace={handleProfilePictureUpload}
+        isLoading={isUploadingProfilePicture}
+      />
 
       {/* Share Modal */}
       <Modal visible={showShare} onClose={() => setShowShare(false)}>
