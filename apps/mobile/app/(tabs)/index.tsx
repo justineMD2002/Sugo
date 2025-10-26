@@ -256,7 +256,10 @@ export default function SugoScreen() {
   });
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !currentOrder || isSendingMessage) return;
+    // Get the active order (either currentOrder for customers or currentDelivery.order for riders)
+    const activeOrder = currentOrder || currentDelivery?.order;
+
+    if (!newMessage.trim() || !activeOrder || isSendingMessage) return;
 
     const messageText = newMessage.trim();
     const tempId = `temp-${Date.now()}`;
@@ -274,14 +277,28 @@ export default function SugoScreen() {
     setIsSendingMessage(true);
 
     try {
+      // Determine receiver based on user type
+      let receiverId = null;
+      if (userType === 'customer') {
+        // Customer sending to rider
+        receiverId = activeOrder.rider_id || currentDelivery?.rider_id || null;
+      } else {
+        // Rider sending to customer
+        receiverId = activeOrder.customer_id || currentDelivery?.order?.customer_id || null;
+      }
+
       const messageData = {
-        order_id: currentOrder.id,
+        order_id: activeOrder.id,
         sender_id: currentUser.id,
-        receiver_id: currentOrder.rider_id || null, // Will be null if rider not assigned yet
+        receiver_id: receiverId,
         message_text: messageText,
         message_type: 'text',
         is_read: false,
       };
+
+      const sendTime = Date.now();
+      console.log('📤 Sending message at:', new Date(sendTime).toLocaleTimeString());
+      console.log('📤 Message:', messageText);
 
       const { data, error } = await supabase
         .from('messages')
@@ -290,7 +307,7 @@ export default function SugoScreen() {
         .single();
 
       if (error) {
-        console.error('Error sending message:', error);
+        console.error('❌ Error sending message:', error);
 
         // Remove optimistic message and show error
         setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
@@ -301,6 +318,11 @@ export default function SugoScreen() {
         setIsSendingMessage(false);
         return;
       }
+
+      const insertTime = Date.now();
+      console.log('✅ Message inserted to DB at:', new Date(insertTime).toLocaleTimeString());
+      console.log('✅ Insert took:', (insertTime - sendTime), 'ms');
+      console.log('✅ Message ID:', data.id, '| Order ID:', data.order_id);
 
       // Replace temp message with real one from database
       setMessages((prev) =>
@@ -697,29 +719,46 @@ export default function SugoScreen() {
   // Real-time subscription for messages only
   // (Delivery and order updates are handled by useOrderRealtime hook)
   useEffect(() => {
-    if (!currentOrder?.id) {
-      console.log('⚠️ No current order, skipping message subscription');
+    console.log('🔄 Message subscription useEffect triggered');
+    console.log('🔍 currentOrder:', currentOrder?.id);
+    console.log('🔍 currentDelivery?.order:', currentDelivery?.order?.id);
+    console.log('🔍 currentUser:', currentUser?.id);
+    console.log('🔍 userType:', userType);
+
+    // Get the active order (either currentOrder for customers or currentDelivery.order for riders)
+    const activeOrder = currentOrder || currentDelivery?.order;
+
+    if (!activeOrder?.id) {
+      console.log('⚠️ No active order, skipping message subscription');
+      console.log('⚠️ currentOrder:', currentOrder);
+      console.log('⚠️ currentDelivery:', currentDelivery);
       return;
     }
 
-    console.log('💬 Setting up real-time message subscription for order:', currentOrder.id);
+    console.log('💬 Setting up real-time subscription for order:', activeOrder.id);
 
     // Load initial messages
-    loadMessages(currentOrder.id);
+    loadMessages(activeOrder.id);
 
-    // Set up real-time subscription for messages
+    // Set up real-time subscription for messages with aggressive settings
     const messagesChannel = supabase
-      .channel(`messages-${currentOrder.id}`)
+      .channel(`messages-${activeOrder.id}`, {
+        config: {
+          broadcast: { ack: false },
+        },
+      })
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `order_id=eq.${currentOrder.id}`,
+          filter: `order_id=eq.${activeOrder.id}`,
         },
         (payload) => {
-          console.log('💬 New message received:', payload);
+          const receiveTime = Date.now();
+          console.log('💬 New message received:', payload.new.message_text);
+          console.log('⏱️ Received at:', new Date(receiveTime).toLocaleTimeString());
 
           // Add new message to the list
           const newMsg = payload.new as any;
@@ -730,21 +769,36 @@ export default function SugoScreen() {
             time: new Date(newMsg.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
           };
 
-          setMessages((prev) => [...prev, transformedMsg]);
+          // Only add if message doesn't already exist (prevent duplicates from optimistic updates)
+          setMessages((prev) => {
+            const exists = prev.some(msg => msg.id === transformedMsg.id);
+            return exists ? prev : [...prev, transformedMsg];
+          });
         }
       )
-      .subscribe((status) => {
-        console.log('💬 Messages channel status:', status);
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Subscribed to messages for order:', activeOrder.id);
+          console.log('✅ Connection ready - messages should arrive instantly');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Error subscribing to messages channel:', err);
+        } else if (status === 'TIMED_OUT') {
+          console.error('⏱️ Subscription timed out');
+        } else if (status === 'CLOSED') {
+          console.warn('🔌 Channel closed');
+        } else {
+          console.log('📡 Channel status:', status);
+        }
       });
 
-    console.log('✅ Message subscription initiated for order:', currentOrder.id);
+    console.log('✅ Message subscription initiated for order:', activeOrder.id);
 
     // Cleanup subscription on unmount or when order changes
     return () => {
-      console.log('🔌 Cleaning up message subscription for order:', currentOrder.id);
+      console.log('🔌 Cleaning up message subscription for order:', activeOrder.id);
       supabase.removeChannel(messagesChannel);
     };
-  }, [currentOrder?.id, currentUser?.id, userType]);
+  }, [currentOrder?.id, currentDelivery?.order?.id, currentUser?.id, userType]);
 
   // Fetch pending orders when rider is on home screen
   useEffect(() => {
