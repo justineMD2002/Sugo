@@ -1534,7 +1534,7 @@ export default function SugoScreen() {
           ) : (
             <>
               <Header
-                title="Good Day, Mark!"
+                title={`Good Day, ${userProfile?.full_name?.split(' ')[0] || 'Rider'}!`}
                 subtitle={`Ready for ${workerService === 'delivery' ? 'deliveries' : 'jobs'}?`}
               />
               <View style={{ padding: 12, backgroundColor: '#f9fafb', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' }}>
@@ -1653,9 +1653,6 @@ export default function SugoScreen() {
                 }}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                     <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Chat with Rider</Text>
-                    <View style={{ backgroundColor: '#fee2e2', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
-                      <Text style={{ fontSize: 11, color: '#dc2626', fontWeight: '600' }}>ACTIVE</Text>
-                    </View>
                   </View>
                   <Chat messages={messages} input={newMessage} onChangeInput={setNewMessage} onSend={sendMessage} alignRightFor="customer" disabled={isSendingMessage} />
                 </View>
