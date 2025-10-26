@@ -77,6 +77,8 @@ export default function SugoScreen() {
   const [showFilter, setShowFilter] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [showFindingRider, setShowFindingRider] = useState(false);
+  const [isBookingDelivery, setIsBookingDelivery] = useState(false);
 
   // OTP and Auth states
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -336,32 +338,40 @@ export default function SugoScreen() {
       return;
     }
 
+    console.log('🏍️ RIDER ACCEPTING ORDER:', order.id);
+
     setIsLoading(true);
 
     try {
-      // Update order status to 'ongoing'
+      // Update order status to 'confirmed' (valid status per database schema)
+      console.log('📝 Updating order status to confirmed...');
       const { error: orderError } = await supabase
         .from('orders')
-        .update({ status: 'ongoing' })
+        .update({ status: 'confirmed' })
         .eq('id', order.id);
 
       if (orderError) {
+        console.error('❌ Error updating order status:', orderError);
         showToastMessage('Failed to accept order. Please try again.', 'error');
         setIsLoading(false);
         return;
       }
 
+      console.log('✅ Order status updated to confirmed');
+
       // Create delivery record
       const deliveryData = {
         order_id: order.id,
         rider_id: currentUser.id,
-        status: 'ongoing',
+        status: 'accepted',  // Valid status per database schema
         is_assigned: true,
         is_accepted: true,
         is_picked_up: false,
         is_completed: false,
         earnings: order.service_fee || 0,
       };
+
+      console.log('📦 Creating delivery record with data:', deliveryData);
 
       const { data: deliveryRecord, error: deliveryError } = await supabase
         .from('deliveries')
@@ -370,6 +380,8 @@ export default function SugoScreen() {
         .single();
 
       if (deliveryError) {
+        console.error('❌ Error creating delivery record:', deliveryError);
+
         // Rollback order status if delivery creation failed
         await supabase
           .from('orders')
@@ -380,6 +392,9 @@ export default function SugoScreen() {
         setIsLoading(false);
         return;
       }
+
+      console.log('✅ ✅ ✅ DELIVERY RECORD CREATED:', deliveryRecord);
+      console.log('🚀 Real-time event should now fire to customer!');
 
       // Update pending orders list (remove accepted order)
       setPendingOrders((prev) => prev.filter((o) => o.id !== order.id));
@@ -393,6 +408,7 @@ export default function SugoScreen() {
       showToastMessage('Order accepted successfully!', 'success');
       setCurrentScreen('home');
     } catch (error) {
+      console.error('❌ Unexpected error in acceptOrder:', error);
       showToastMessage('An unexpected error occurred. Please try again.', 'error');
     } finally {
       setIsLoading(false);
@@ -410,6 +426,47 @@ export default function SugoScreen() {
       setCurrentScreen(userType === 'rider' ? 'deliveries' : 'orders');
     }
     setShowCompleteConfirmation(false);
+  };
+
+  const cancelOrder = async () => {
+    if (!currentOrder) return;
+
+    setIsLoading(true);
+
+    try {
+      // Delete the order from database
+      const { error } = await supabase
+        .from('orders')
+        .delete()
+        .eq('id', currentOrder.id);
+
+      if (error) {
+        console.error('Error canceling order:', error);
+        showToastMessage('Failed to cancel order. Please try again.', 'error');
+        setIsLoading(false);
+        return;
+      }
+
+      // Close finding rider modal
+      setShowFindingRider(false);
+
+      // Clear current order
+      setCurrentOrder(null);
+
+      // Reset booking state
+      setIsBookingDelivery(false);
+
+      // Show success message
+      showToastMessage('Order cancelled successfully', 'success');
+
+      // Stay on home screen (booking form will show since currentOrder is null)
+      setCurrentScreen('home');
+    } catch (error) {
+      console.error('Unexpected error canceling order:', error);
+      showToastMessage('An unexpected error occurred', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const showToastMessage = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -430,6 +487,7 @@ export default function SugoScreen() {
       return;
     }
 
+    setIsBookingDelivery(true);
     setIsLoading(true);
 
     try {
@@ -469,11 +527,12 @@ export default function SugoScreen() {
         return;
       }
 
-      // Success - clear form and show success message
-      showToastMessage('Delivery booked successfully!', 'success');
+      console.log('✅ ORDER CREATED:', data);
 
       // Set current order for tracking
       setCurrentOrder(data);
+
+      console.log('📝 Current order state updated with:', data.id);
 
       // Clear form inputs
       setPickupAddress('');
@@ -482,14 +541,22 @@ export default function SugoScreen() {
       setReceiverName('');
       setReceiverPhone('');
 
-      // Navigate to home to show active order
-      setCurrentScreen('home');
+      // Stop loading overlay BEFORE showing finding rider modal
+      setIsLoading(false);
+      setIsBookingDelivery(false);
+
+      console.log('🔍 SHOWING FINDING RIDER MODAL for order:', data.id);
+
+      // Show finding rider modal (no loading spinner, just the modal)
+      setShowFindingRider(true);
+
+      console.log('⏳ Waiting for rider to accept order...');
 
     } catch (error) {
       console.error('Unexpected error:', error);
       showToastMessage('An unexpected error occurred. Please try again.', 'error');
-    } finally {
       setIsLoading(false);
+      setIsBookingDelivery(false);
     }
   };
 
@@ -500,8 +567,26 @@ export default function SugoScreen() {
         const user = await getCurrentUser();
 
         if (user) {
-          // User is already logged in
-          setCurrentUser(user);
+          // Fetch user profile to get user_type BEFORE setting state
+          const { data: userProfile, error: profileError } = await supabase
+            .from('users')
+            .select('user_type, full_name')
+            .eq('id', user.id)
+            .single();
+
+          if (profileError) {
+            console.error('Error fetching user profile during session restore:', profileError);
+            // Even if profile fetch fails, log user in with default type
+            setCurrentUser(user);
+          } else if (userProfile) {
+            console.log('Session restored - User type:', userProfile.user_type);
+            // Set user and user type together
+            setCurrentUser(user);
+            setUserType(userProfile.user_type as UserType);
+          } else {
+            console.error('User profile not found during session restore');
+            setCurrentUser(user);
+          }
 
           // Auto-navigate to home after splash screen delay
           setTimeout(() => {
@@ -527,7 +612,12 @@ export default function SugoScreen() {
 
   // Real-time subscription for messages and delivery status
   useEffect(() => {
-    if (!currentOrder?.id) return;
+    if (!currentOrder?.id) {
+      console.log('⚠️ No current order, skipping subscriptions');
+      return;
+    }
+
+    console.log('🔌 Setting up real-time subscriptions for order:', currentOrder.id);
 
     // Load initial data
     loadMessages(currentOrder.id);
@@ -535,7 +625,11 @@ export default function SugoScreen() {
 
     // Set up real-time subscription for messages
     const messagesChannel = supabase
-      .channel(`messages:${currentOrder.id}`)
+      .channel(`messages-${currentOrder.id}`, {
+        config: {
+          broadcast: { self: true },
+        },
+      })
       .on(
         'postgres_changes',
         {
@@ -545,7 +639,7 @@ export default function SugoScreen() {
           filter: `order_id=eq.${currentOrder.id}`,
         },
         (payload) => {
-          console.log('New message received:', payload);
+          console.log('💬 New message received:', payload);
 
           // Add new message to the list
           const newMsg = payload.new as any;
@@ -559,11 +653,17 @@ export default function SugoScreen() {
           setMessages((prev) => [...prev, transformedMsg]);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('📡 Messages channel status:', status);
+      });
 
     // Set up real-time subscription for delivery status
     const deliveryChannel = supabase
-      .channel(`deliveries:${currentOrder.id}`)
+      .channel(`deliveries-${currentOrder.id}`, {
+        config: {
+          broadcast: { self: true },
+        },
+      })
       .on(
         'postgres_changes',
         {
@@ -572,22 +672,201 @@ export default function SugoScreen() {
           table: 'deliveries',
           filter: `order_id=eq.${currentOrder.id}`,
         },
-        (payload) => {
-          console.log('Delivery status updated:', payload);
+        async (payload) => {
+          console.log('🚚 DELIVERY EVENT RECEIVED:', {
+            eventType: payload.eventType,
+            deliveryData: payload.new,
+            timestamp: new Date().toISOString(),
+          });
 
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            setDeliveryStatus(payload.new);
+            const deliveryData = payload.new as any;
+            setDeliveryStatus(deliveryData);
+
+            console.log('📊 Delivery Status:', {
+              is_accepted: deliveryData.is_accepted,
+              is_assigned: deliveryData.is_assigned,
+              rider_id: deliveryData.rider_id,
+              userType: userType,
+            });
+
+            // REAL-TIME: If rider accepted, fetch and display rider details immediately
+            if (userType === 'customer' && deliveryData.is_accepted) {
+              console.log('🚀 RIDER ACCEPTED! Fetching rider details...');
+
+              try {
+                // Fetch complete rider details with vehicle info
+                const { data: riderData, error: riderError } = await supabase
+                  .from('users')
+                  .select(`
+                    id,
+                    full_name,
+                    phone_number,
+                    avatar_url,
+                    rating,
+                    rider_profiles (
+                      vehicle_brand,
+                      vehicle_model,
+                      vehicle_color,
+                      plate_number
+                    )
+                  `)
+                  .eq('id', deliveryData.rider_id)
+                  .single();
+
+                if (!riderError && riderData) {
+                  console.log('✅ RIDER DETAILS FETCHED:', riderData.full_name);
+
+                  const riderProfile = riderData.rider_profiles?.[0];
+
+                  // CRITICAL: Update current order with rider information
+                  const updatedOrder = {
+                    ...currentOrder,
+                    rider_id: riderData.id,
+                    rider_name: riderData.full_name,
+                    rider_phone: riderData.phone_number,
+                    rider_avatar: riderData.avatar_url,
+                    rider_rating: riderData.rating,
+                    rider_vehicle: riderProfile ?
+                      `${riderProfile.vehicle_brand} ${riderProfile.vehicle_model} - ${riderProfile.plate_number}`
+                      : 'N/A',
+                    status: 'confirmed',
+                  };
+
+                  console.log('🔄 UPDATING CURRENT ORDER WITH:', updatedOrder);
+                  setCurrentOrder(updatedOrder);
+
+                  // Close Finding Rider modal
+                  console.log('🚪 CLOSING FINDING RIDER MODAL');
+                  setShowFindingRider(false);
+
+                  // Ensure we're on home screen (current order page will render)
+                  console.log('🏠 NAVIGATING TO HOME SCREEN');
+                  setCurrentScreen('home');
+
+                  // Show success notification
+                  showToastMessage(`Rider found! ${riderData.full_name} is on the way.`, 'success');
+
+                  console.log('✅ ✅ ✅ CURRENT ORDER PAGE SHOULD NOW RENDER ✅ ✅ ✅');
+                } else {
+                  console.error('❌ ERROR FETCHING RIDER DETAILS:', riderError);
+                }
+              } catch (error) {
+                console.error('❌ UNEXPECTED ERROR FETCHING RIDER DETAILS:', error);
+              }
+            }
           } else if (payload.eventType === 'DELETE') {
             setDeliveryStatus(null);
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('📡 DELIVERIES CHANNEL STATUS:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ ✅ ✅ DELIVERIES CHANNEL ACTIVE AND READY ✅ ✅ ✅');
+        }
+      });
+
+    // Set up real-time subscription for order status changes (backup mechanism)
+    const orderChannel = supabase
+      .channel(`orders-${currentOrder.id}`, {
+        config: {
+          broadcast: { self: true },
+        },
+      })
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `id=eq.${currentOrder.id}`,
+        },
+        async (payload) => {
+          console.log('📦 Order status updated:', payload);
+          const updatedOrder = payload.new as any;
+
+          // Update current order state with new order data
+          setCurrentOrder((prevOrder: any) => ({
+            ...prevOrder,
+            ...updatedOrder,
+          }));
+
+          // REAL-TIME: If order status changed from pending, fetch rider info
+          if (userType === 'customer' && updatedOrder.status !== 'pending') {
+            console.log('🔄 Order status changed to:', updatedOrder.status);
+
+            try {
+              // Fetch delivery record with rider info
+              const { data: deliveryData, error: deliveryError } = await supabase
+                .from('deliveries')
+                .select(`
+                  *,
+                  rider:users!deliveries_rider_id_fkey(
+                    id,
+                    full_name,
+                    phone_number,
+                    avatar_url,
+                    rating,
+                    rider_profiles(
+                      vehicle_brand,
+                      vehicle_model,
+                      vehicle_color,
+                      plate_number
+                    )
+                  )
+                `)
+                .eq('order_id', currentOrder.id)
+                .single();
+
+              if (!deliveryError && deliveryData && deliveryData.rider) {
+                const riderInfo = deliveryData.rider;
+                const riderProfile = riderInfo.rider_profiles?.[0];
+
+                console.log('✅ Rider info fetched from order update:', riderInfo.full_name);
+
+                // Update order with complete rider information
+                setCurrentOrder((prevOrder: any) => ({
+                  ...prevOrder,
+                  ...updatedOrder,
+                  rider_id: riderInfo.id,
+                  rider_name: riderInfo.full_name,
+                  rider_phone: riderInfo.phone_number,
+                  rider_avatar: riderInfo.avatar_url,
+                  rider_rating: riderInfo.rating,
+                  rider_vehicle: riderProfile ?
+                    `${riderProfile.vehicle_brand} ${riderProfile.vehicle_model} - ${riderProfile.plate_number}`
+                    : 'N/A',
+                }));
+
+                // Close finding rider modal and navigate
+                setShowFindingRider(false);
+                setCurrentScreen('home');
+                showToastMessage(`Rider found! ${riderInfo.full_name} is on the way.`, 'success');
+
+                console.log('✅ Transitioned to current order page');
+              }
+            } catch (error) {
+              console.error('❌ Error fetching delivery/rider info:', error);
+            }
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 ORDERS CHANNEL STATUS:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ ✅ ✅ ORDERS CHANNEL ACTIVE AND READY ✅ ✅ ✅');
+        }
+      });
+
+    console.log('✅ All real-time subscriptions initiated for order:', currentOrder.id);
 
     // Cleanup subscriptions on unmount or when order changes
     return () => {
+      console.log('🔌 Cleaning up real-time subscriptions for order:', currentOrder.id);
       supabase.removeChannel(messagesChannel);
       supabase.removeChannel(deliveryChannel);
+      supabase.removeChannel(orderChannel);
     };
   }, [currentOrder?.id, currentUser?.id, userType]);
 
@@ -797,8 +1076,31 @@ export default function SugoScreen() {
       const result = await signInUserWithPhone(loginPhoneNumber.trim(), loginPassword);
 
       if (result.success && result.user) {
-        // Store the authenticated user
+        // Fetch user profile to get user_type BEFORE setting any state
+        const { data: userProfile, error: profileError } = await supabase
+          .from('users')
+          .select('user_type, full_name')
+          .eq('id', result.user.id)
+          .single();
+
+        if (profileError) {
+          console.error('Error fetching user profile:', profileError);
+          showToastMessage('Login successful but failed to load profile. Please try again.', 'error');
+          return;
+        }
+
+        if (!userProfile) {
+          console.error('User profile not found');
+          showToastMessage('User profile not found. Please contact support.', 'error');
+          return;
+        }
+
+        console.log('Fetched user profile:', userProfile);
+        console.log('User type from database:', userProfile.user_type);
+
+        // Now set all state together - React will batch these updates
         setCurrentUser(result.user);
+        setUserType(userProfile.user_type as UserType);
 
         // Clear form fields
         setLoginPhoneNumber('');
@@ -806,8 +1108,11 @@ export default function SugoScreen() {
         setEmailNotConfirmed(false);
 
         showToastMessage('Login successful!', 'success');
-        // Navigate to home screen immediately
-        setCurrentScreen('home');
+
+        // Navigate to home screen after a brief delay to ensure state updates
+        setTimeout(() => {
+          setCurrentScreen('home');
+        }, 100);
       } else {
         // Check if the error is specifically about email confirmation
         if (result.error?.includes('Email not confirmed')) {
@@ -832,14 +1137,50 @@ export default function SugoScreen() {
       const result = await signOutUser();
 
       if (result.success) {
-        // Close the logout confirmation modal
+        // Close all modals
         setShowLogoutConfirm(false);
+        setShowFindingRider(false);
+        setShowPaymentModal(false);
+        setShowRatingModal(false);
+        setShowOrderTracking(false);
+        setShowSettings(false);
+        setShowNotifications(false);
+        setShowCallOptions(false);
+        setShowCompleteConfirmation(false);
+        setShowEditProfile(false);
+        setShowChangePassword(false);
+        setShowAddPaymentMethod(false);
+        setShowServiceTicketDetails(false);
+        setShowCreateTicket(false);
+        setShowSearch(false);
+        setShowFilter(false);
+        setShowHelp(false);
+        setShowShare(false);
 
-        // Clear any user-related state
+        // Clear all user-related state
         setCurrentUser(null);
         setCurrentOrder(null);
         setCurrentDelivery(null);
+        setDeliveryStatus(null);
+        setPendingOrders([]);
         setMessages([]);
+
+        // Reset booking state
+        setIsBookingDelivery(false);
+
+        // Clear form inputs
+        setPickupAddress('');
+        setDeliveryAddress('');
+        setItemDescription('');
+        setReceiverName('');
+        setReceiverPhone('');
+        setLoginPhoneNumber('');
+        setLoginPassword('');
+        setEmailNotConfirmed(false);
+
+        // Reset ratings
+        setCurrentRating(0);
+        setRatingComment('');
 
         // Show success message
         showToastMessage('Logged out successfully', 'success');
@@ -1162,7 +1503,7 @@ export default function SugoScreen() {
           ) : currentScreen === 'deliveries' ? (
             <>
               <Header title={`Past ${workerService === 'delivery' ? 'Deliveries' : 'Jobs'}`} subtitle={`Your ${workerService === 'delivery' ? 'delivery' : 'service'} history`} />
-              <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+              <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
                 {[1, 2, 3].map((i) => (
                   <SectionCard key={i}>
                     <Row label="Order ID" value={`DLV-28${40 + i}`} />
@@ -1182,7 +1523,7 @@ export default function SugoScreen() {
           ) : currentScreen === 'earnings' ? (
             <>
               <Header title="Earnings" />
-              <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+              <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
                 <SectionCard>
                   <Text style={{ color: '#6b7280', marginBottom: 4 }}>Total Earnings Today</Text>
                   <Text style={{ fontSize: 32, fontWeight: '800' }}>₱1,240.00</Text>
@@ -1206,7 +1547,7 @@ export default function SugoScreen() {
           ) : currentScreen === 'profile' ? (
             <>
               <Header title="Mark Rider" subtitle="+63 912 345 6789" />
-              <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+              <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
                 <SectionCard title="Rider Stats">
                   <View style={{ flexDirection: 'row', gap: 12 }}>
                     <Stat value="487" label="Total Deliveries" />
@@ -1239,7 +1580,7 @@ export default function SugoScreen() {
                   <Text style={{ color: '#dc2626', fontWeight: '600' }}>Refresh Orders</Text>
                 </TouchableOpacity>
               </View>
-              <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+              <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
                 {pendingOrders.length === 0 ? (
                   <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
                     <Ionicons name="cube-outline" size={64} color="#d1d5db" />
@@ -1270,10 +1611,40 @@ export default function SugoScreen() {
         </>
       ) : (
         <>
-          {currentOrder && currentScreen === 'home' ? (
+          {currentOrder && currentScreen === 'home' && currentOrder.rider_name ? (
             <>
               <Header title="Current Order" subtitle={`Order #${currentOrder.order_number || currentOrder.id} - ${currentOrder.status || 'In Progress'}`} />
               <View style={{ flex: 1, padding: 16, gap: 12 }}>
+                {currentOrder.rider_name && (
+                  <SectionCard title="Rider Information">
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                      <View style={{ width: 50, height: 50, borderRadius: 999, backgroundColor: '#fee2e2', alignItems: 'center', justifyContent: 'center' }}>
+                        {currentOrder.rider_avatar ? (
+                          <Text style={{ fontSize: 20, fontWeight: '700', color: '#dc2626' }}>
+                            {currentOrder.rider_name.charAt(0).toUpperCase()}
+                          </Text>
+                        ) : (
+                          <Ionicons name="person" size={24} color="#dc2626" />
+                        )}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>
+                          {currentOrder.rider_name}
+                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                          <Ionicons name="star" size={14} color="#fbbf24" />
+                          <Text style={{ fontSize: 13, color: '#6b7280' }}>
+                            {currentOrder.rider_rating?.toFixed(1) || '5.0'}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                    <Row label="Phone" value={currentOrder.rider_phone || 'N/A'} />
+                    {currentOrder.rider_vehicle && currentOrder.rider_vehicle !== 'N/A' && (
+                      <Row label="Vehicle" value={currentOrder.rider_vehicle} />
+                    )}
+                  </SectionCard>
+                )}
                 <TouchableOpacity
                   onPress={() => setIsOrderDetailsExpanded(!isOrderDetailsExpanded)}
                   activeOpacity={0.7}
@@ -1353,15 +1724,15 @@ export default function SugoScreen() {
             </>
           ) : currentScreen === 'orders' ? (
             <>
-              <Header 
-                title="Past Orders" 
+              <Header
+                title="Past Orders"
                 subtitle="Your delivery history"
                 showSearch
                 showSettings
                 onSearchPress={() => setShowSearch(true)}
                 onSettingsPress={() => setShowFilter(true)}
               />
-              <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+              <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
                 {[{ id: 'DLV-2846', rider: 'John Driver', rating: '4.9', phone: '0923 456 7890', from: 'Ayala Center', to: 'Banilad', status: 'Completed' }].map((o) => (
                   <SectionCard key={o.id}>
                     <Row label="Order ID" value={o.id} />
@@ -1380,7 +1751,7 @@ export default function SugoScreen() {
           ) : currentScreen === 'profile' ? (
             <>
               <Header title="Juan Dela Cruz" subtitle="+63 912 345 6789" />
-              <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+              <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
                 <SectionCard title="Personal Information">
                   <Row label="Name" value="Juan Dela Cruz" />
                   <Row label="Phone" value="+63 912 345 6789" />
@@ -1665,20 +2036,27 @@ export default function SugoScreen() {
           <View style={{ backgroundColor: '#fee2e2', borderRadius: 12, padding: 12, gap: 8 }}>
             <Text style={{ fontWeight: '600', color: '#111827' }}>Order #{currentOrder?.order_number || currentOrder?.id || 'ORD-001'}</Text>
             <Text style={{ color: '#6b7280', fontSize: 12 }}>Status: {currentOrder?.status || 'Pending'}</Text>
-            <Text style={{ color: '#6b7280', fontSize: 12 }}>Estimated arrival: 15 mins</Text>
+            {currentOrder?.rider_name && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Ionicons name="person" size={14} color="#dc2626" />
+                <Text style={{ color: '#6b7280', fontSize: 12 }}>
+                  Rider: {currentOrder.rider_name}
+                </Text>
+              </View>
+            )}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Ionicons name="navigate" size={14} color="#dc2626" />
               <Text style={{ color: '#6b7280', fontSize: 12 }}>
-                {currentOrder?.rider ? 'Rider is on the way' : 'Looking for available rider...'}
+                {currentOrder?.rider_name ? 'Rider is on the way' : 'Looking for available rider...'}
               </Text>
             </View>
           </View>
           {[
-            { title: 'Order Confirmed', completed: currentOrder?.status !== 'pending' },
-            { title: 'Rider Assigned', completed: deliveryStatus?.is_assigned || false },
-            { title: 'Rider Accepted', completed: deliveryStatus?.is_accepted || false },
-            { title: 'Order Picked Up', completed: deliveryStatus?.is_picked_up || false },
-            { title: 'Delivered', completed: deliveryStatus?.is_completed || false },
+            { title: 'Order Confirmed', completed: currentOrder?.status !== 'pending', icon: 'checkmark-circle' },
+            { title: 'Rider Assigned', completed: deliveryStatus?.is_assigned || false, icon: 'person' },
+            { title: 'Rider Accepted', completed: deliveryStatus?.is_accepted || false, icon: 'thumbs-up' },
+            { title: 'Order Picked Up', completed: deliveryStatus?.is_picked_up || false, icon: 'cube' },
+            { title: 'Delivered', completed: deliveryStatus?.is_completed || false, icon: 'checkmark-done-circle' },
           ].map((step, i) => (
             <View key={i} style={{ flexDirection: 'row', gap: 8 }}>
               <View style={{ width: 24, height: 24, borderRadius: 999, backgroundColor: step.completed ? '#16a34a' : '#e5e7eb', alignItems: 'center', justifyContent: 'center' }}>
@@ -1813,12 +2191,50 @@ export default function SugoScreen() {
         <ShareModal onClose={() => setShowShare(false)} orderNumber={currentOrder?.order_number || currentOrder?.id} />
       </Modal>
 
+      {/* Finding Rider Modal - Only for customers */}
+      {userType === 'customer' && (
+        <Modal visible={showFindingRider} onClose={() => {}} title="Finding Rider">
+          <View style={{ alignItems: 'center', gap: 16, paddingVertical: 20 }}>
+            <View style={{ width: 80, height: 80, borderRadius: 999, backgroundColor: '#fee2e2', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="search" size={36} color="#dc2626" />
+            </View>
+            <View style={{ alignItems: 'center', gap: 8 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: '#111827', textAlign: 'center' }}>
+                Looking for available riders...
+              </Text>
+              <Text style={{ color: '#6b7280', textAlign: 'center' }}>
+                Please wait while we find the best rider for your delivery
+              </Text>
+            </View>
+            <View style={{ width: '100%', backgroundColor: '#f3f4f6', borderRadius: 12, padding: 16, gap: 8 }}>
+              <Row label="Order Number" value={currentOrder?.order_number || 'N/A'} />
+              <Row label="Pickup" value={currentOrder?.pickup_address || 'N/A'} />
+              <Row label="Delivery" value={currentOrder?.delivery_address || 'N/A'} />
+              <Row label="Total Amount" value={`₱${(currentOrder?.total_amount || 0).toFixed(2)}`} valueTint="#dc2626" />
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: '#dc2626' }} />
+              <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: '#fca5a5' }} />
+              <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: '#fee2e2' }} />
+            </View>
+            <TouchableOpacity
+              style={[styles.secondaryBtn, { width: '100%', borderColor: '#dc2626' }]}
+              onPress={cancelOrder}
+              disabled={isLoading}
+            >
+              <Ionicons name="close-circle" size={18} color="#dc2626" />
+              <Text style={{ color: '#dc2626', fontWeight: '600' }}>Cancel Order</Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
+      )}
+
       {/* Toast - positioned at top */}
       <Toast message={toastMessage} type={toastType} visible={showToast} onHide={() => setShowToast(false)} />
 
       {/* Overlays */}
       <BottomBar items={bottomItems} current={currentScreen} onChange={(k) => setCurrentScreen(k as Screen)} />
-      {isLoading && <LoadingOverlay />}
+      {isLoading && !isBookingDelivery && <LoadingOverlay />}
     </View>
   );
 }
