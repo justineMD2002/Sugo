@@ -16,8 +16,9 @@ import SplashScreen from '@/components/sugo/SplashScreen';
 import Toast from '@/components/sugo/Toast';
 import { getCurrentUser, signInUserWithPhone, signOutUser, SignUpData, signUpUser } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
+import { useOrderPolling } from '@/hooks/use-order-polling';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type Screen = 'splash' | 'login' | 'signup' | 'password' | 'otp' | 'home' | 'orders' | 'profile' | 'deliveries' | 'earnings';
@@ -178,6 +179,78 @@ export default function SugoScreen() {
            receiverPhone.trim() !== '' &&
            isValidReceiverPhone;
   }, [pickupAddress, deliveryAddress, itemDescription, receiverName, receiverPhone, isValidReceiverPhone]);
+
+  // Callback when rider accepts the order (for customers)
+  const handleRiderAccepted = useCallback((riderDetails: any) => {
+    console.log('🎉🎉🎉 handleRiderAccepted CALLED! 🎉🎉🎉');
+    console.log('Rider Details:', JSON.stringify(riderDetails, null, 2));
+
+    // Update current order with rider information
+    console.log('Updating currentOrder with rider info...');
+    setCurrentOrder((prevOrder: any) => {
+      const updatedOrder = {
+        ...prevOrder,
+        rider_id: riderDetails.id,
+        rider_name: riderDetails.full_name,
+        rider_phone: riderDetails.phone_number,
+        rider_avatar: riderDetails.avatar_url,
+        rider_rating: riderDetails.rating,
+        rider_vehicle: riderDetails.vehicle_info,
+        status: 'confirmed',
+      };
+      console.log('Updated order:', updatedOrder);
+      return updatedOrder;
+    });
+
+    // Close finding rider modal immediately
+    console.log('Closing finding rider modal...');
+    setShowFindingRider(false);
+
+    // Navigate to home screen immediately (current order view will render automatically)
+    console.log('Navigating to home screen...');
+    setCurrentScreen('home');
+
+    // Show success toast message (non-blocking)
+    console.log('Showing toast message...');
+    showToastMessage(`Rider found! ${riderDetails.full_name} is on the way.`, 'success');
+
+    console.log('✅✅✅ Customer redirected to current order page ✅✅✅');
+  }, []);
+
+  // Callback when delivery is updated
+  const handleDeliveryUpdate = useCallback((delivery: any) => {
+    console.log('📦 Delivery updated:', delivery);
+    setDeliveryStatus(delivery);
+  }, []);
+
+  // Callback when order is updated
+  const handleOrderUpdate = useCallback((order: any) => {
+    console.log('🔄 Order updated:', order);
+    setCurrentOrder((prevOrder: any) => ({
+      ...prevOrder,
+      ...order,
+    }));
+  }, []);
+
+  // Log hook parameters for debugging
+  console.log('🔍 Polling Hook Parameters:', {
+    orderId: currentOrder?.id,
+    userId: currentUser?.id,
+    userType: userType,
+    enabled: !!currentOrder?.id && !!currentUser?.id,
+  });
+
+  // Use POLLING instead of real-time (since Supabase real-time is not available)
+  // Checks database every 3 seconds for delivery updates
+  const { triggerCheck, isPolling } = useOrderPolling({
+    orderId: currentOrder?.id || null,
+    userId: currentUser?.id || null,
+    userType: userType,
+    onRiderAccepted: handleRiderAccepted,
+    onDeliveryUpdate: handleDeliveryUpdate,
+    enabled: !!currentOrder?.id && !!currentUser?.id,
+    pollInterval: 3000, // Check every 3 seconds
+  });
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !currentOrder || isSendingMessage) return;
@@ -394,7 +467,15 @@ export default function SugoScreen() {
       }
 
       console.log('✅ ✅ ✅ DELIVERY RECORD CREATED:', deliveryRecord);
+      console.log('Delivery ID:', deliveryRecord.id);
+      console.log('Order ID:', deliveryRecord.order_id);
+      console.log('Rider ID:', deliveryRecord.rider_id);
+      console.log('Is Accepted:', deliveryRecord.is_accepted);
       console.log('🚀 Real-time event should now fire to customer!');
+      console.log('🎯 Customer should see event in their console NOW!');
+
+      // Force a small delay to ensure Supabase processes the insert
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       // Update pending orders list (remove accepted order)
       setPendingOrders((prev) => prev.filter((o) => o.id !== order.id));
@@ -610,26 +691,22 @@ export default function SugoScreen() {
     checkSession();
   }, []);
 
-  // Real-time subscription for messages and delivery status
+  // Real-time subscription for messages only
+  // (Delivery and order updates are handled by useOrderRealtime hook)
   useEffect(() => {
     if (!currentOrder?.id) {
-      console.log('⚠️ No current order, skipping subscriptions');
+      console.log('⚠️ No current order, skipping message subscription');
       return;
     }
 
-    console.log('🔌 Setting up real-time subscriptions for order:', currentOrder.id);
+    console.log('💬 Setting up real-time message subscription for order:', currentOrder.id);
 
-    // Load initial data
+    // Load initial messages
     loadMessages(currentOrder.id);
-    loadDeliveryStatus(currentOrder.id);
 
     // Set up real-time subscription for messages
     const messagesChannel = supabase
-      .channel(`messages-${currentOrder.id}`, {
-        config: {
-          broadcast: { self: true },
-        },
-      })
+      .channel(`messages-${currentOrder.id}`)
       .on(
         'postgres_changes',
         {
@@ -654,219 +731,15 @@ export default function SugoScreen() {
         }
       )
       .subscribe((status) => {
-        console.log('📡 Messages channel status:', status);
+        console.log('💬 Messages channel status:', status);
       });
 
-    // Set up real-time subscription for delivery status
-    const deliveryChannel = supabase
-      .channel(`deliveries-${currentOrder.id}`, {
-        config: {
-          broadcast: { self: true },
-        },
-      })
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen to INSERT, UPDATE, DELETE
-          schema: 'public',
-          table: 'deliveries',
-          filter: `order_id=eq.${currentOrder.id}`,
-        },
-        async (payload) => {
-          console.log('🚚 DELIVERY EVENT RECEIVED:', {
-            eventType: payload.eventType,
-            deliveryData: payload.new,
-            timestamp: new Date().toISOString(),
-          });
+    console.log('✅ Message subscription initiated for order:', currentOrder.id);
 
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            const deliveryData = payload.new as any;
-            setDeliveryStatus(deliveryData);
-
-            console.log('📊 Delivery Status:', {
-              is_accepted: deliveryData.is_accepted,
-              is_assigned: deliveryData.is_assigned,
-              rider_id: deliveryData.rider_id,
-              userType: userType,
-            });
-
-            // REAL-TIME: If rider accepted, fetch and display rider details immediately
-            if (userType === 'customer' && deliveryData.is_accepted) {
-              console.log('🚀 RIDER ACCEPTED! Fetching rider details...');
-
-              try {
-                // Fetch complete rider details with vehicle info
-                const { data: riderData, error: riderError } = await supabase
-                  .from('users')
-                  .select(`
-                    id,
-                    full_name,
-                    phone_number,
-                    avatar_url,
-                    rating,
-                    rider_profiles (
-                      vehicle_brand,
-                      vehicle_model,
-                      vehicle_color,
-                      plate_number
-                    )
-                  `)
-                  .eq('id', deliveryData.rider_id)
-                  .single();
-
-                if (!riderError && riderData) {
-                  console.log('✅ RIDER DETAILS FETCHED:', riderData.full_name);
-
-                  const riderProfile = riderData.rider_profiles?.[0];
-
-                  // CRITICAL: Update current order with rider information
-                  const updatedOrder = {
-                    ...currentOrder,
-                    rider_id: riderData.id,
-                    rider_name: riderData.full_name,
-                    rider_phone: riderData.phone_number,
-                    rider_avatar: riderData.avatar_url,
-                    rider_rating: riderData.rating,
-                    rider_vehicle: riderProfile ?
-                      `${riderProfile.vehicle_brand} ${riderProfile.vehicle_model} - ${riderProfile.plate_number}`
-                      : 'N/A',
-                    status: 'confirmed',
-                  };
-
-                  console.log('🔄 UPDATING CURRENT ORDER WITH:', updatedOrder);
-                  setCurrentOrder(updatedOrder);
-
-                  // Close Finding Rider modal
-                  console.log('🚪 CLOSING FINDING RIDER MODAL');
-                  setShowFindingRider(false);
-
-                  // Ensure we're on home screen (current order page will render)
-                  console.log('🏠 NAVIGATING TO HOME SCREEN');
-                  setCurrentScreen('home');
-
-                  // Show success notification
-                  showToastMessage(`Rider found! ${riderData.full_name} is on the way.`, 'success');
-
-                  console.log('✅ ✅ ✅ CURRENT ORDER PAGE SHOULD NOW RENDER ✅ ✅ ✅');
-                } else {
-                  console.error('❌ ERROR FETCHING RIDER DETAILS:', riderError);
-                }
-              } catch (error) {
-                console.error('❌ UNEXPECTED ERROR FETCHING RIDER DETAILS:', error);
-              }
-            }
-          } else if (payload.eventType === 'DELETE') {
-            setDeliveryStatus(null);
-          }
-        }
-      )
-      .subscribe((status) => {
-        console.log('📡 DELIVERIES CHANNEL STATUS:', status);
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ ✅ ✅ DELIVERIES CHANNEL ACTIVE AND READY ✅ ✅ ✅');
-        }
-      });
-
-    // Set up real-time subscription for order status changes (backup mechanism)
-    const orderChannel = supabase
-      .channel(`orders-${currentOrder.id}`, {
-        config: {
-          broadcast: { self: true },
-        },
-      })
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'orders',
-          filter: `id=eq.${currentOrder.id}`,
-        },
-        async (payload) => {
-          console.log('📦 Order status updated:', payload);
-          const updatedOrder = payload.new as any;
-
-          // Update current order state with new order data
-          setCurrentOrder((prevOrder: any) => ({
-            ...prevOrder,
-            ...updatedOrder,
-          }));
-
-          // REAL-TIME: If order status changed from pending, fetch rider info
-          if (userType === 'customer' && updatedOrder.status !== 'pending') {
-            console.log('🔄 Order status changed to:', updatedOrder.status);
-
-            try {
-              // Fetch delivery record with rider info
-              const { data: deliveryData, error: deliveryError } = await supabase
-                .from('deliveries')
-                .select(`
-                  *,
-                  rider:users!deliveries_rider_id_fkey(
-                    id,
-                    full_name,
-                    phone_number,
-                    avatar_url,
-                    rating,
-                    rider_profiles(
-                      vehicle_brand,
-                      vehicle_model,
-                      vehicle_color,
-                      plate_number
-                    )
-                  )
-                `)
-                .eq('order_id', currentOrder.id)
-                .single();
-
-              if (!deliveryError && deliveryData && deliveryData.rider) {
-                const riderInfo = deliveryData.rider;
-                const riderProfile = riderInfo.rider_profiles?.[0];
-
-                console.log('✅ Rider info fetched from order update:', riderInfo.full_name);
-
-                // Update order with complete rider information
-                setCurrentOrder((prevOrder: any) => ({
-                  ...prevOrder,
-                  ...updatedOrder,
-                  rider_id: riderInfo.id,
-                  rider_name: riderInfo.full_name,
-                  rider_phone: riderInfo.phone_number,
-                  rider_avatar: riderInfo.avatar_url,
-                  rider_rating: riderInfo.rating,
-                  rider_vehicle: riderProfile ?
-                    `${riderProfile.vehicle_brand} ${riderProfile.vehicle_model} - ${riderProfile.plate_number}`
-                    : 'N/A',
-                }));
-
-                // Close finding rider modal and navigate
-                setShowFindingRider(false);
-                setCurrentScreen('home');
-                showToastMessage(`Rider found! ${riderInfo.full_name} is on the way.`, 'success');
-
-                console.log('✅ Transitioned to current order page');
-              }
-            } catch (error) {
-              console.error('❌ Error fetching delivery/rider info:', error);
-            }
-          }
-        }
-      )
-      .subscribe((status) => {
-        console.log('📡 ORDERS CHANNEL STATUS:', status);
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ ✅ ✅ ORDERS CHANNEL ACTIVE AND READY ✅ ✅ ✅');
-        }
-      });
-
-    console.log('✅ All real-time subscriptions initiated for order:', currentOrder.id);
-
-    // Cleanup subscriptions on unmount or when order changes
+    // Cleanup subscription on unmount or when order changes
     return () => {
-      console.log('🔌 Cleaning up real-time subscriptions for order:', currentOrder.id);
+      console.log('🔌 Cleaning up message subscription for order:', currentOrder.id);
       supabase.removeChannel(messagesChannel);
-      supabase.removeChannel(deliveryChannel);
-      supabase.removeChannel(orderChannel);
     };
   }, [currentOrder?.id, currentUser?.id, userType]);
 
@@ -1097,10 +970,13 @@ export default function SugoScreen() {
 
         console.log('Fetched user profile:', userProfile);
         console.log('User type from database:', userProfile.user_type);
+        console.log('Setting userType to:', userProfile.user_type);
 
         // Now set all state together - React will batch these updates
         setCurrentUser(result.user);
         setUserType(userProfile.user_type as UserType);
+
+        console.log('User type set! Navigating to home...');
 
         // Clear form fields
         setLoginPhoneNumber('');
@@ -1471,6 +1347,9 @@ export default function SugoScreen() {
   }
 
   // Main Container
+  // Debug: Log current state before render
+  console.log('[RENDER] Current userType:', userType, '| Current screen:', currentScreen, '| User:', currentUser?.email);
+
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
       {userType === 'rider' ? (
@@ -1546,7 +1425,7 @@ export default function SugoScreen() {
             </>
           ) : currentScreen === 'profile' ? (
             <>
-              <Header title="Mark Rider" subtitle="+63 912 345 6789" />
+              <Header title={currentUser?.user_metadata?.full_name || "Rider Profile"} subtitle={currentUser?.phone || currentUser?.email || ""} />
               <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
                 <SectionCard title="Rider Stats">
                   <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -1555,13 +1434,21 @@ export default function SugoScreen() {
                   </View>
                 </SectionCard>
                 <SectionCard title="Personal Information">
-                  <Row label="Name" value="Mark Rider" />
-                  <Row label="Phone" value="+63 912 345 6789" />
-                  <Row label="Email" value="mark.rider@email.com" />
-                  <Row label="Vehicle" value="Motorcycle - ABC 1234" />
+                  <Row label="Name" value={currentUser?.user_metadata?.full_name || "N/A"} />
+                  <Row label="Phone" value={currentUser?.phone || currentUser?.user_metadata?.phone_number || "N/A"} />
+                  <Row label="Email" value={currentUser?.email || "N/A"} />
+                  <Row label="Vehicle" value={vehicleBrand && plateNumber ? `${vehicleBrand} - ${plateNumber}` : "Not set"} />
                 </SectionCard>
                 <TouchableOpacity style={[styles.secondaryBtn, { borderColor: '#dc2626' }]} onPress={() => setShowEditProfile(true)}>
                   <Text style={{ color: '#dc2626', fontWeight: '600' }}>Edit Profile</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.primaryBtn, { backgroundColor: '#dc2626', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }]}
+                  onPress={() => setShowLogoutConfirm(true)}
+                  disabled={isLoading}
+                >
+                  <Ionicons name="log-out-outline" size={20} color="#fff" />
+                  <Text style={styles.primaryText}>Logout</Text>
                 </TouchableOpacity>
               </ScrollView>
             </>
@@ -2217,6 +2104,13 @@ export default function SugoScreen() {
               <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: '#fca5a5' }} />
               <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: '#fee2e2' }} />
             </View>
+
+            <View style={{ alignItems: 'center', paddingVertical: 8 }}>
+              <Text style={{ fontSize: 12, color: '#6b7280' }}>
+                {isPolling ? '🔄 Auto-checking every 3 seconds...' : '⏸️ Polling paused'}
+              </Text>
+            </View>
+
             <TouchableOpacity
               style={[styles.secondaryBtn, { width: '100%', borderColor: '#dc2626' }]}
               onPress={cancelOrder}
