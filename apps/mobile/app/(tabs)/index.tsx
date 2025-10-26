@@ -20,7 +20,7 @@ import { useOrderRealtime } from '@/hooks/use-order-realtime';
 import { notifyRiderAccepted, notifyNewMessage, notifyOrderStatusChanged, getUserNotifications, getUnreadNotificationCount, markAllNotificationsAsRead } from '@/lib/notificationService';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Linking, Platform } from 'react-native';
 
 type Screen = 'splash' | 'login' | 'signup' | 'password' | 'otp' | 'home' | 'orders' | 'profile' | 'deliveries' | 'earnings';
 type UserType = 'customer' | 'rider';
@@ -1639,7 +1639,13 @@ export default function SugoScreen() {
                   <Chat messages={messages} input={newMessage} onChangeInput={setNewMessage} onSend={sendMessage} alignRightFor="rider" disabled={isSendingMessage} />
                 </View>
                 <View style={{ flexDirection: 'row', gap: 12 }}>
-                  <TouchableOpacity style={[styles.primaryBtn, { flex: 1, backgroundColor: '#16a34a' }]}>
+                  <TouchableOpacity
+                    style={[styles.primaryBtn, { flex: 1, backgroundColor: '#16a34a' }]}
+                    onPress={() => {
+                      setCallNumber(currentDelivery?.order?.receiver_phone || currentDelivery?.order?.contact || "+63 000 000 0000");
+                      setShowCallOptions(true);
+                    }}
+                  >
                     <Ionicons name="call" size={20} color="#fff" />
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.primaryBtn, { flex: 1, backgroundColor: '#16a34a' }]} onPress={() => setShowCompleteConfirmation(true)}>
@@ -2338,15 +2344,62 @@ export default function SugoScreen() {
 
       {/* Add Call Options Modal */}
       <Modal visible={showCallOptions} onClose={() => setShowCallOptions(false)}>
-        <CallOptionsModal 
+        <CallOptionsModal
           onClose={() => setShowCallOptions(false)}
-          onViberPress={() => { 
-            setShowCallOptions(false); 
-            showToastMessage(`Calling ${callNumber} via Viber...`, 'info');
+          onViberPress={async () => {
+            setShowCallOptions(false);
+
+            // Clean phone number (remove spaces, dashes, etc.)
+            const cleanNumber = callNumber.replace(/[\s\-\(\)]/g, '');
+
+            // Viber deep link format: viber://contact?number={phone_number}
+            const viberUrl = `viber://contact?number=${cleanNumber}`;
+
+            try {
+              const canOpen = await Linking.canOpenURL(viberUrl);
+              if (canOpen) {
+                await Linking.openURL(viberUrl);
+                showToastMessage(`Opening Viber to call ${callNumber}`, 'info');
+              } else {
+                // Fallback: Open Viber app or show error
+                const viberAppUrl = Platform.OS === 'ios'
+                  ? 'viber://'
+                  : 'viber://forward?text=';
+
+                const canOpenApp = await Linking.canOpenURL(viberAppUrl);
+                if (canOpenApp) {
+                  await Linking.openURL(viberAppUrl);
+                  showToastMessage('Viber opened. Please search for the contact manually.', 'info');
+                } else {
+                  showToastMessage('Viber is not installed on this device', 'error');
+                }
+              }
+            } catch (error) {
+              console.error('Error opening Viber:', error);
+              showToastMessage('Failed to open Viber', 'error');
+            }
           }}
-          onPhonePress={() => { 
-            setShowCallOptions(false); 
-            showToastMessage(`Calling ${callNumber}...`, 'info');
+          onPhonePress={async () => {
+            setShowCallOptions(false);
+
+            // Clean phone number
+            const cleanNumber = callNumber.replace(/[\s\-\(\)]/g, '');
+
+            // Phone dialer URL
+            const phoneUrl = `tel:${cleanNumber}`;
+
+            try {
+              const canOpen = await Linking.canOpenURL(phoneUrl);
+              if (canOpen) {
+                await Linking.openURL(phoneUrl);
+                showToastMessage(`Calling ${callNumber}...`, 'info');
+              } else {
+                showToastMessage('Unable to make phone calls on this device', 'error');
+              }
+            } catch (error) {
+              console.error('Error making phone call:', error);
+              showToastMessage('Failed to initiate call', 'error');
+            }
           }}
         />
       </Modal>
