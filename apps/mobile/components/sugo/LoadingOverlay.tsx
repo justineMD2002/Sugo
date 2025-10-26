@@ -6,8 +6,8 @@ export default function LoadingOverlay() {
     <View style={styles.overlay}>
       <View style={styles.card}>
         <ActivityIndicator size="large" color="#dc2626" />
-        <Text style={styles.title}>Finding Rider</Text>
-        <Text style={styles.desc}>Please wait while we match you with the best available rider...</Text>
+        <Text style={styles.title}>Loading</Text>
+        <Text style={styles.desc}>Please wait...</Text>
       </View>
     </View>
   );

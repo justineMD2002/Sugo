@@ -15,9 +15,10 @@ type ChatProps = {
   onChangeInput: (v: string) => void;
   onSend: () => void;
   alignRightFor: 'customer' | 'rider';
+  disabled?: boolean;
 };
 
-export default function Chat({ messages, input, onChangeInput, onSend, alignRightFor }: ChatProps) {
+export default function Chat({ messages, input, onChangeInput, onSend, alignRightFor, disabled = false }: ChatProps) {
   const listRef = useRef<FlatList<ChatMessage>>(null);
 
   useEffect(() => {
@@ -47,12 +48,17 @@ export default function Chat({ messages, input, onChangeInput, onSend, alignRigh
 
         <View style={styles.inputRow}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, disabled && { opacity: 0.5 }]}
             value={input}
             onChangeText={onChangeInput}
             placeholder="Type a message..."
+            editable={!disabled}
           />
-          <TouchableOpacity style={styles.send} onPress={onSend}>
+          <TouchableOpacity
+            style={[styles.send, disabled && { opacity: 0.5 }]}
+            onPress={onSend}
+            disabled={disabled}
+          >
             <Ionicons name="send" size={18} color="#fff" />
           </TouchableOpacity>
         </View>
