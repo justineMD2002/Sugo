@@ -3,48 +3,90 @@ import { View, Text, TouchableOpacity, StyleSheet, FlatList } from 'react-native
 import { Ionicons } from '@expo/vector-icons';
 
 type Notification = {
-  id: number;
+  id: string;
   title: string;
   message: string;
-  time: string;
-  unread: boolean;
+  created_at: string;
+  is_read: boolean;
+  related_order_id?: string;
 };
 
 type NotificationsModalProps = {
+  notifications: Notification[];
   onClose: () => void;
+  onMarkAllAsRead?: () => void;
+  onClearAll?: () => void;
 };
 
-const mockNotifications: Notification[] = [
-  { id: 1, title: 'Order Confirmed', message: 'Your order #ORD-001 has been confirmed', time: '2:30 PM', unread: true },
-  { id: 2, title: 'Rider Assigned', message: 'Mike Johnson is on the way to pick up your order', time: '2:32 PM', unread: true },
-  { id: 3, title: 'Order Picked Up', message: 'Your order has been picked up and is on the way', time: '2:45 PM', unread: false },
-  { id: 4, title: 'Payment Received', message: 'Payment of ₱85.00 has been received', time: '3:05 PM', unread: false },
-];
+const formatTime = (timestamp: string) => {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
 
-export default function NotificationsModal({ onClose }: NotificationsModalProps) {
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 7) return `${days}d ago`;
+  return date.toLocaleDateString();
+};
+
+export default function NotificationsModal({
+  notifications,
+  onClose,
+  onMarkAllAsRead,
+  onClearAll,
+}: NotificationsModalProps) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Notifications</Text>
-        <TouchableOpacity onPress={onClose}>
-          <Ionicons name="close" size={24} color="#6b7280" />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          {notifications.length > 0 && (
+            <>
+              {onMarkAllAsRead && (
+                <TouchableOpacity onPress={onMarkAllAsRead} style={styles.headerButton}>
+                  <Text style={styles.headerButtonText}>Mark all read</Text>
+                </TouchableOpacity>
+              )}
+              {onClearAll && (
+                <TouchableOpacity onPress={onClearAll} style={styles.headerButton}>
+                  <Ionicons name="trash-outline" size={20} color="#dc2626" />
+                </TouchableOpacity>
+              )}
+            </>
+          )}
+          <TouchableOpacity onPress={onClose}>
+            <Ionicons name="close" size={24} color="#6b7280" />
+          </TouchableOpacity>
+        </View>
       </View>
-      <FlatList
-        data={mockNotifications}
-        keyExtractor={(n) => String(n.id)}
-        contentContainerStyle={styles.list}
-        renderItem={({ item }) => (
-          <View style={[styles.notification, item.unread ? styles.unread : styles.read]}>
-            <View style={[styles.dot, item.unread ? { backgroundColor: '#dc2626' } : { backgroundColor: '#d1d5db' }]} />
-            <View style={styles.content}>
-              <Text style={styles.notificationTitle}>{item.title}</Text>
-              <Text style={styles.notificationMessage}>{item.message}</Text>
-              <Text style={styles.time}>{item.time}</Text>
+
+      {notifications.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Ionicons name="notifications-off-outline" size={64} color="#d1d5db" />
+          <Text style={styles.emptyTitle}>No notifications</Text>
+          <Text style={styles.emptyMessage}>You're all caught up!</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={notifications}
+          keyExtractor={(n) => String(n.id)}
+          contentContainerStyle={styles.list}
+          renderItem={({ item }) => (
+            <View style={[styles.notification, !item.is_read ? styles.unread : styles.read]}>
+              <View style={[styles.dot, !item.is_read ? { backgroundColor: '#dc2626' } : { backgroundColor: '#d1d5db' }]} />
+              <View style={styles.content}>
+                <Text style={styles.notificationTitle}>{item.title}</Text>
+                <Text style={styles.notificationMessage}>{item.message}</Text>
+                <Text style={styles.time}>{formatTime(item.created_at)}</Text>
+              </View>
             </View>
-          </View>
-        )}
-      />
+          )}
+        />
+      )}
     </View>
   );
 }
@@ -67,6 +109,36 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#111827',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerButton: {
+    padding: 4,
+  },
+  headerButtonText: {
+    fontSize: 13,
+    color: '#dc2626',
+    fontWeight: '600',
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 64,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+    marginTop: 16,
+  },
+  emptyMessage: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 4,
   },
   list: {
     padding: 12,

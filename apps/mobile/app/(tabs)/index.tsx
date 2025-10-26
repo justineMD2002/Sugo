@@ -16,7 +16,8 @@ import SplashScreen from '@/components/sugo/SplashScreen';
 import Toast from '@/components/sugo/Toast';
 import { getCurrentUser, signInUserWithPhone, signOutUser, SignUpData, signUpUser, getUserProfile, UserProfile, getUserAddresses, Address } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import { useOrderPolling } from '@/hooks/use-order-polling';
+import { useOrderRealtime } from '@/hooks/use-order-realtime';
+import { notifyRiderAccepted, notifyNewMessage, notifyOrderStatusChanged, getUserNotifications, getUnreadNotificationCount, markAllNotificationsAsRead } from '@/lib/notificationService';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -57,6 +58,10 @@ export default function SugoScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+
+  // Notification state
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
 
   // Toast state
   const [toastMessage, setToastMessage] = useState('');
@@ -217,8 +222,17 @@ export default function SugoScreen() {
     console.log('Showing toast message...');
     showToastMessage(`Rider found! ${riderDetails.full_name} is on the way.`, 'success');
 
+    // Create notification for rider acceptance
+    if (currentUser?.id && currentOrder?.id) {
+      notifyRiderAccepted(
+        currentUser.id,
+        riderDetails.full_name,
+        currentOrder.id
+      );
+    }
+
     console.log('✅✅✅ Customer redirected to current order page ✅✅✅');
-  }, []);
+  }, [currentUser, currentOrder]);
 
   // Callback when delivery is updated
   const handleDeliveryUpdate = useCallback((delivery: any) => {
@@ -229,11 +243,29 @@ export default function SugoScreen() {
   // Callback when order is updated
   const handleOrderUpdate = useCallback((order: any) => {
     console.log('🔄 Order updated:', order);
-    setCurrentOrder((prevOrder: any) => ({
-      ...prevOrder,
-      ...order,
-    }));
-  }, []);
+
+    setCurrentOrder((prevOrder: any) => {
+      // Check if status changed
+      if (prevOrder && prevOrder.status !== order.status && currentUser?.id) {
+        console.log(`📢 Order status changed: ${prevOrder.status} → ${order.status}`);
+
+        // Notify customer about status change
+        if (order.customer_id) {
+          notifyOrderStatusChanged(
+            order.customer_id,
+            order.id,
+            prevOrder.status,
+            order.status
+          );
+        }
+      }
+
+      return {
+        ...prevOrder,
+        ...order,
+      };
+    });
+  }, [currentUser]);
 
   // Log hook parameters for debugging
   console.log('🔍 Polling Hook Parameters:', {
@@ -243,16 +275,16 @@ export default function SugoScreen() {
     enabled: !!currentOrder?.id && !!currentUser?.id,
   });
 
-  // Use POLLING instead of real-time (since Supabase real-time is not available)
-  // Checks database every 3 seconds for delivery updates
-  const { triggerCheck, isPolling } = useOrderPolling({
+  // Use REALTIME subscriptions for instant delivery updates
+  // Replaces polling for better performance and instant notifications
+  useOrderRealtime({
     orderId: currentOrder?.id || null,
     userId: currentUser?.id || null,
     userType: userType,
     onRiderAccepted: handleRiderAccepted,
     onDeliveryUpdate: handleDeliveryUpdate,
+    onOrderUpdate: handleOrderUpdate,
     enabled: !!currentOrder?.id && !!currentUser?.id,
-    pollInterval: 3000, // Check every 3 seconds
   });
 
   const sendMessage = async () => {
@@ -323,6 +355,17 @@ export default function SugoScreen() {
       console.log('✅ Message inserted to DB at:', new Date(insertTime).toLocaleTimeString());
       console.log('✅ Insert took:', (insertTime - sendTime), 'ms');
       console.log('✅ Message ID:', data.id, '| Order ID:', data.order_id);
+
+      // Send notification to receiver (only if receiver is a customer)
+      if (receiverId && userProfile?.full_name && userType === 'rider') {
+        // Only riders send notifications to customers
+        notifyNewMessage(
+          receiverId,
+          userProfile.full_name,
+          messageText,
+          activeOrder.id
+        );
+      }
 
       // Replace temp message with real one from database
       setMessages((prev) =>
@@ -799,6 +842,99 @@ export default function SugoScreen() {
       supabase.removeChannel(messagesChannel);
     };
   }, [currentOrder?.id, currentDelivery?.order?.id, currentUser?.id, userType]);
+
+  // Real-time subscription for notifications (only for customers)
+  useEffect(() => {
+    if (!currentUser?.id) {
+      console.log('⚠️ No current user, skipping notification subscription');
+      return;
+    }
+
+    // Only customers get notifications
+    if (userType !== 'customer') {
+      console.log('🏍️ Rider user, skipping notification subscription');
+      return;
+    }
+
+    console.log('🔔 Setting up real-time notification subscription for customer:', currentUser.id);
+
+    // Load initial notifications
+    const loadNotifications = async () => {
+      const userNotifications = await getUserNotifications(currentUser.id);
+      setNotifications(userNotifications);
+
+      const unreadCount = await getUnreadNotificationCount(currentUser.id);
+      setUnreadNotificationCount(unreadCount);
+    };
+
+    loadNotifications();
+
+    // Set up real-time subscription for new notifications
+    const notificationChannel = supabase
+      .channel(`notifications-${currentUser.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${currentUser.id}`,
+        },
+        (payload) => {
+          console.log('🔔 New notification received:', payload.new);
+
+          const newNotification = payload.new as any;
+
+          // Add new notification to the list
+          setNotifications((prev) => [newNotification, ...prev]);
+
+          // Increment unread count
+          setUnreadNotificationCount((prev) => prev + 1);
+
+          // Show toast for new notification
+          showToastMessage(newNotification.title, 'info');
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${currentUser.id}`,
+        },
+        (payload) => {
+          console.log('🔔 Notification updated:', payload.new);
+
+          const updatedNotification = payload.new as any;
+
+          // Update notification in the list
+          setNotifications((prev) =>
+            prev.map((notif) =>
+              notif.id === updatedNotification.id ? updatedNotification : notif
+            )
+          );
+
+          // Recalculate unread count
+          getUnreadNotificationCount(currentUser.id).then(setUnreadNotificationCount);
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Subscribed to notifications for user:', currentUser.id);
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Error subscribing to notifications');
+        }
+      });
+
+    console.log('✅ Notification subscription initiated');
+
+    // Cleanup subscription on unmount
+    return () => {
+      console.log('🔌 Cleaning up notification subscription');
+      supabase.removeChannel(notificationChannel);
+    };
+  }, [currentUser?.id, userType]);
 
   // Fetch pending orders when rider is on home screen
   useEffect(() => {
@@ -1457,7 +1593,7 @@ export default function SugoScreen() {
         <>
           {currentDelivery && currentScreen === 'home' ? (
             <>
-              <Header title="Current Delivery" subtitle={`Order #${currentDelivery.id} - In Progress`} />
+              <Header title="Current Delivery" subtitle={`Order #${currentDelivery.order?.order_number || currentDelivery.order?.id || currentDelivery.id} - ${currentDelivery.order?.status || 'In Progress'}`} />
               <View style={{ flex: 1, padding: 16, gap: 12 }}>
                 <TouchableOpacity
                   onPress={() => setIsOrderDetailsExpanded(!isOrderDetailsExpanded)}
@@ -1826,7 +1962,7 @@ export default function SugoScreen() {
                 subtitle="Choose one"
                 showNotifications
                 onNotificationsPress={() => setShowNotifications(true)}
-                notificationBadge
+                notificationBadge={unreadNotificationCount > 0}
               >
                 <ServiceSelector value={selectedService as any} onChange={(s) => setSelectedService(s)} />
               </Header>
@@ -2178,7 +2314,26 @@ export default function SugoScreen() {
 
       {/* Add Notifications Modal */}
       <Modal visible={showNotifications} onClose={() => setShowNotifications(false)}>
-        <NotificationsModal onClose={() => setShowNotifications(false)} />
+        <NotificationsModal
+          notifications={notifications}
+          onClose={() => setShowNotifications(false)}
+          onMarkAllAsRead={async () => {
+            if (currentUser?.id) {
+              const success = await markAllNotificationsAsRead(currentUser.id);
+              if (success) {
+                // Update all notifications to mark as read in local state
+                setNotifications((prev) =>
+                  prev.map((notif) => ({ ...notif, is_read: true }))
+                );
+                // Update unread count to 0
+                setUnreadNotificationCount(0);
+                showToastMessage('All notifications marked as read', 'success');
+              } else {
+                showToastMessage('Failed to mark notifications as read', 'error');
+              }
+            }
+          }}
+        />
       </Modal>
 
       {/* Add Call Options Modal */}
@@ -2268,7 +2423,7 @@ export default function SugoScreen() {
 
             <View style={{ alignItems: 'center', paddingVertical: 8 }}>
               <Text style={{ fontSize: 12, color: '#6b7280' }}>
-                {isPolling ? '🔄 Auto-checking every 3 seconds...' : '⏸️ Polling paused'}
+                📡 Waiting for rider to accept (real-time)
               </Text>
             </View>
 
