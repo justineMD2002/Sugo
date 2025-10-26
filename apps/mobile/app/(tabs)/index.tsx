@@ -1349,6 +1349,7 @@ export default function SugoScreen() {
   // Main Container
   // Debug: Log current state before render
   console.log('[RENDER] Current userType:', userType, '| Current screen:', currentScreen, '| User:', currentUser?.email);
+  console.log(JSON.stringify(currentDelivery), "jere");
 
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
@@ -1358,14 +1359,46 @@ export default function SugoScreen() {
             <>
               <Header title="Current Delivery" subtitle={`Order #${currentDelivery.id} - In Progress`} />
               <View style={{ flex: 1, padding: 16, gap: 12 }}>
-                <SectionCard title="Delivery Details">
-                  <Row label="Customer" value={currentDelivery.customer} />
-                  <Row label="Phone" value={currentDelivery.phone} />
-                  <Row label="Pickup" value={currentDelivery.pickup} />
-                  <Row label="Drop-off" value={currentDelivery.dropoff} />
-                  <Row label="Fee" value={currentDelivery.fee} valueTint="#dc2626" />
-                </SectionCard>
-                <View style={{ flex: 1 }}>
+                <TouchableOpacity
+                  onPress={() => setIsOrderDetailsExpanded(!isOrderDetailsExpanded)}
+                  activeOpacity={0.7}
+                >
+                    <SectionCard title="Order Details">
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: isOrderDetailsExpanded ? 12 : 0 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 16, fontWeight: '600', color: '#dc2626', marginTop: 2 }}>
+                            ₱{(currentDelivery.order.total_amount || 0).toFixed(2)}
+                          </Text>
+                        </View>
+                        <Ionicons
+                          name={isOrderDetailsExpanded ? "chevron-up" : "chevron-down"}
+                          size={20}
+                          color="#6b7280"
+                        />
+                      </View>
+                      {isOrderDetailsExpanded && (
+                        <View>
+                          <View style={{ height: 1, backgroundColor: '#e5e7eb', marginBottom: 12 }} />
+                          <Row label="Pickup Address" value={currentDelivery.order.pickup_address || 'N/A'} />
+                          <Row label="Delivery Address" value={currentDelivery.order.delivery_address || 'N/A'} />
+                          <Row label="Item Description" value={currentDelivery.order.item_description || currentDelivery.order.item || 'N/A'} />
+                          <Row label="Receiver" value={currentDelivery.order.receiver_name || currentDelivery.order.receiver || 'N/A'} />
+                          <Row label="Contact" value={currentDelivery.order.receiver_phone || currentDelivery.order.contact || 'N/A'} />
+                        </View>
+                      )}
+                    </SectionCard>
+                  </TouchableOpacity>
+                <View style={{
+                  flex: 1,
+                  backgroundColor: '#ffffff',
+                  borderRadius: 12,
+                  padding: 16,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 8,
+                  elevation: 4
+                }}>
                   <Text style={styles.sectionTitle}>Chat with Customer</Text>
                   <Chat messages={messages} input={newMessage} onChangeInput={setNewMessage} onSend={sendMessage} alignRightFor="rider" disabled={isSendingMessage} />
                 </View>
