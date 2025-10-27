@@ -21,6 +21,7 @@ import { notifyRiderAccepted, notifyNewMessage, notifyOrderStatusChanged, getUse
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Linking, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type Screen = 'splash' | 'login' | 'signup' | 'password' | 'otp' | 'home' | 'orders' | 'profile' | 'deliveries' | 'earnings';
 type UserType = 'customer' | 'rider';
@@ -188,6 +189,71 @@ export default function SugoScreen() {
            isValidReceiverPhone;
   }, [pickupAddress, deliveryAddress, itemDescription, receiverName, receiverPhone, isValidReceiverPhone]);
 
+  // AsyncStorage persistence helpers
+  const saveCurrentOrderToStorage = async (order: any) => {
+    try {
+      await AsyncStorage.setItem('currentOrder', JSON.stringify(order));
+      console.log('💾 Order saved to storage:', order.id);
+    } catch (error) {
+      console.error('Error saving order to storage:', error);
+    }
+  };
+
+  const saveCurrentDeliveryToStorage = async (delivery: any) => {
+    try {
+      await AsyncStorage.setItem('currentDelivery', JSON.stringify(delivery));
+      console.log('💾 Delivery saved to storage:', delivery.id);
+    } catch (error) {
+      console.error('Error saving delivery to storage:', error);
+    }
+  };
+
+  const loadOrderFromStorage = async () => {
+    try {
+      const orderJson = await AsyncStorage.getItem('currentOrder');
+      if (orderJson) {
+        const order = JSON.parse(orderJson);
+        console.log('📂 Order loaded from storage:', order.id);
+        return order;
+      }
+    } catch (error) {
+      console.error('Error loading order from storage:', error);
+    }
+    return null;
+  };
+
+  const loadDeliveryFromStorage = async () => {
+    try {
+      const deliveryJson = await AsyncStorage.getItem('currentDelivery');
+      if (deliveryJson) {
+        const delivery = JSON.parse(deliveryJson);
+        console.log('📂 Delivery loaded from storage:', delivery.id);
+        return delivery;
+      }
+    } catch (error) {
+      console.error('Error loading delivery from storage:', error);
+    }
+    return null;
+  };
+
+  const clearOrderFromStorage = async () => {
+    try {
+      await AsyncStorage.removeItem('currentOrder');
+      console.log('🗑️ Order cleared from storage');
+    } catch (error) {
+      console.error('Error clearing order from storage:', error);
+    }
+  };
+
+  const clearDeliveryFromStorage = async () => {
+    try {
+      await AsyncStorage.removeItem('currentDelivery');
+      console.log('🗑️ Delivery cleared from storage');
+    } catch (error) {
+      console.error('Error clearing delivery from storage:', error);
+    }
+  };
+
   // Callback when rider accepts the order (for customers)
   const handleRiderAccepted = useCallback((riderDetails: any) => {
     console.log('🎉🎉🎉 handleRiderAccepted CALLED! 🎉🎉🎉');
@@ -207,6 +273,10 @@ export default function SugoScreen() {
         status: 'confirmed',
       };
       console.log('Updated order:', updatedOrder);
+
+      // Save to AsyncStorage for persistence
+      saveCurrentOrderToStorage(updatedOrder);
+
       return updatedOrder;
     });
 
@@ -549,10 +619,14 @@ export default function SugoScreen() {
       setPendingOrders((prev) => prev.filter((o) => o.id !== order.id));
 
       // Set as current delivery
-      setCurrentDelivery({
+      const currentDeliveryData = {
         ...deliveryRecord,
         order: order,
-      });
+      };
+      setCurrentDelivery(currentDeliveryData);
+
+      // Save to AsyncStorage for persistence
+      await saveCurrentDeliveryToStorage(currentDeliveryData);
 
       showToastMessage('Order accepted successfully!', 'success');
       setCurrentScreen('home');
@@ -564,17 +638,100 @@ export default function SugoScreen() {
     }
   };
 
-  const completeOrder = () => {
-    if (currentOrder) {
-      setCurrentOrder(null);
-      setCurrentScreen(userType === 'rider' ? 'deliveries' : 'orders');
-      if (userType === 'customer') setShowRatingModal(true);
+  const completeOrder = async () => {
+    setIsLoading(true);
+
+    try {
+      // Handle customer completing order
+      if (currentOrder) {
+        // Update order status to completed
+        const { error: orderError } = await supabase
+          .from('orders')
+          .update({
+            status: 'completed',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', currentOrder.id);
+
+        if (orderError) {
+          console.error('Error completing order:', orderError);
+          showToastMessage('Failed to complete order. Please try again.', 'error');
+          setIsLoading(false);
+          return;
+        }
+
+        // Update delivery status if there's an associated delivery
+        if (currentOrder.delivery_id) {
+          const { error: deliveryError } = await supabase
+            .from('deliveries')
+            .update({
+              status: 'completed',
+              is_completed: true,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', currentOrder.delivery_id);
+
+          if (deliveryError) {
+            console.error('Error updating delivery:', deliveryError);
+          }
+        }
+
+        // Clear from state and storage
+        setCurrentOrder(null);
+        await clearOrderFromStorage();
+
+        setCurrentScreen('orders');
+        showToastMessage('Order completed successfully!', 'success');
+        if (userType === 'customer') setShowRatingModal(true);
+      }
+
+      // Handle rider completing delivery
+      if (currentDelivery) {
+        // Update delivery status
+        const { error: deliveryError } = await supabase
+          .from('deliveries')
+          .update({
+            status: 'completed',
+            is_completed: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', currentDelivery.id);
+
+        if (deliveryError) {
+          console.error('Error completing delivery:', deliveryError);
+          showToastMessage('Failed to complete delivery. Please try again.', 'error');
+          setIsLoading(false);
+          return;
+        }
+
+        // Update order status
+        const { error: orderError } = await supabase
+          .from('orders')
+          .update({
+            status: 'completed',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', currentDelivery.order_id);
+
+        if (orderError) {
+          console.error('Error updating order:', orderError);
+        }
+
+        // Clear from state and storage
+        setCurrentDelivery(null);
+        await clearDeliveryFromStorage();
+
+        setCurrentScreen('deliveries');
+        showToastMessage('Delivery completed successfully!', 'success');
+      }
+
+      setShowCompleteConfirmation(false);
+    } catch (error) {
+      console.error('Unexpected error completing order/delivery:', error);
+      showToastMessage('An unexpected error occurred', 'error');
+    } finally {
+      setIsLoading(false);
     }
-    if (currentDelivery) {
-      setCurrentDelivery(null);
-      setCurrentScreen(userType === 'rider' ? 'deliveries' : 'orders');
-    }
-    setShowCompleteConfirmation(false);
   };
 
   const cancelOrder = async () => {
@@ -599,8 +756,9 @@ export default function SugoScreen() {
       // Close finding rider modal
       setShowFindingRider(false);
 
-      // Clear current order
+      // Clear current order from state and storage
       setCurrentOrder(null);
+      await clearOrderFromStorage();
 
       // Reset booking state
       setIsBookingDelivery(false);
@@ -612,6 +770,53 @@ export default function SugoScreen() {
       setCurrentScreen('home');
     } catch (error) {
       console.error('Unexpected error canceling order:', error);
+      showToastMessage('An unexpected error occurred', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const cancelDelivery = async () => {
+    if (!currentDelivery) return;
+
+    setIsLoading(true);
+
+    try {
+      // Delete the delivery record from database
+      const { error: deliveryError } = await supabase
+        .from('deliveries')
+        .delete()
+        .eq('id', currentDelivery.id);
+
+      if (deliveryError) {
+        console.error('Error canceling delivery:', deliveryError);
+        showToastMessage('Failed to cancel delivery. Please try again.', 'error');
+        setIsLoading(false);
+        return;
+      }
+
+      // Update order status back to pending so other riders can accept it
+      const { error: orderError } = await supabase
+        .from('orders')
+        .update({ status: 'pending' })
+        .eq('id', currentDelivery.order_id);
+
+      if (orderError) {
+        console.error('Error updating order status:', orderError);
+        // Continue even if this fails, delivery is already cancelled
+      }
+
+      // Clear current delivery from state and storage
+      setCurrentDelivery(null);
+      await clearDeliveryFromStorage();
+
+      // Show success message
+      showToastMessage('Delivery cancelled successfully', 'success');
+
+      // Navigate to home screen (pending orders will show)
+      setCurrentScreen('home');
+    } catch (error) {
+      console.error('Unexpected error canceling delivery:', error);
       showToastMessage('An unexpected error occurred', 'error');
     } finally {
       setIsLoading(false);
@@ -680,6 +885,9 @@ export default function SugoScreen() {
 
       // Set current order for tracking
       setCurrentOrder(data);
+
+      // Save to AsyncStorage for persistence
+      await saveCurrentOrderToStorage(data);
 
       console.log('📝 Current order state updated with:', data.id);
 
@@ -758,6 +966,35 @@ export default function SugoScreen() {
 
     checkSession();
   }, []);
+
+  // Load saved order/delivery from AsyncStorage on app start
+  useEffect(() => {
+    const loadSavedData = async () => {
+      if (!currentUser) return;
+
+      console.log('📂 Loading saved order/delivery from storage...');
+
+      // Load saved order for customers
+      if (userType === 'customer') {
+        const savedOrder = await loadOrderFromStorage();
+        if (savedOrder) {
+          console.log('✅ Restored saved order:', savedOrder.id);
+          setCurrentOrder(savedOrder);
+        }
+      }
+
+      // Load saved delivery for riders
+      if (userType === 'rider') {
+        const savedDelivery = await loadDeliveryFromStorage();
+        if (savedDelivery) {
+          console.log('✅ Restored saved delivery:', savedDelivery.id);
+          setCurrentDelivery(savedDelivery);
+        }
+      }
+    };
+
+    loadSavedData();
+  }, [currentUser, userType]);
 
   // Real-time subscription for messages only
   // (Delivery and order updates are handled by useOrderRealtime hook)
@@ -1594,7 +1831,7 @@ export default function SugoScreen() {
           {currentDelivery && currentScreen === 'home' ? (
             <>
               <Header title="Current Delivery" subtitle={`Order #${currentDelivery.order?.order_number || currentDelivery.order?.id || currentDelivery.id} - ${currentDelivery.order?.status || 'In Progress'}`} />
-              <View style={{ flex: 1, padding: 16, gap: 12 }}>
+              <View style={{ flex: 1, padding: 16, gap: 12, paddingBottom: 100 }}>
                 <TouchableOpacity
                   onPress={() => setIsOrderDetailsExpanded(!isOrderDetailsExpanded)}
                   activeOpacity={0.7}
@@ -1635,23 +1872,39 @@ export default function SugoScreen() {
                   shadowRadius: 8,
                   elevation: 4
                 }}>
-                  <Text style={styles.sectionTitle}>Chat with Customer</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Chat with Customer</Text>
+                  </View>
                   <Chat messages={messages} input={newMessage} onChangeInput={setNewMessage} onSend={sendMessage} alignRightFor="rider" disabled={isSendingMessage} />
                 </View>
                 <View style={{ flexDirection: 'row', gap: 12 }}>
                   <TouchableOpacity
                     style={[styles.primaryBtn, { flex: 1, backgroundColor: '#16a34a' }]}
+                    onPress={() => setShowCompleteConfirmation(true)}
+                    disabled={isLoading}
+                  >
+                    <Ionicons name="checkmark-circle" size={16} color="#fff" />
+                    <Text style={styles.primaryText}>Mark as Completed</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.callRiderBtn, { flex: 1 }]}
                     onPress={() => {
                       setCallNumber(currentDelivery?.order?.receiver_phone || currentDelivery?.order?.contact || "+63 000 000 0000");
                       setShowCallOptions(true);
                     }}
                   >
-                    <Ionicons name="call" size={20} color="#fff" />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.primaryBtn, { flex: 1, backgroundColor: '#16a34a' }]} onPress={() => setShowCompleteConfirmation(true)}>
-                    <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                    <Ionicons name="call" size={16} color="#fff" />
+                    <Text style={styles.primaryText}>Call Customer</Text>
                   </TouchableOpacity>
                 </View>
+                <TouchableOpacity
+                  style={[styles.primaryBtn, { backgroundColor: '#ef4444' }]}
+                  onPress={cancelDelivery}
+                  disabled={isLoading}
+                >
+                  <Ionicons name="close-circle" size={16} color="#fff" />
+                  <Text style={styles.primaryText}>{isLoading ? 'Cancelling...' : 'Cancel Order'}</Text>
+                </TouchableOpacity>
               </View>
             </>
           ) : currentScreen === 'deliveries' ? (
@@ -1776,7 +2029,7 @@ export default function SugoScreen() {
           {currentOrder && currentScreen === 'home' && currentOrder.rider_name ? (
             <>
               <Header title="Current Order" subtitle={`Order #${currentOrder.order_number || currentOrder.id} - ${currentOrder.status || 'In Progress'}`} />
-              <View style={{ flex: 1, padding: 16, gap: 12 }}>
+              <View style={{ flex: 1, padding: 16, gap: 12, paddingBottom: 100 }}>
                 {currentOrder.rider_name && (
                   <SectionCard title="Rider Information">
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
@@ -1876,8 +2129,13 @@ export default function SugoScreen() {
                     <Text style={styles.primaryText}>Call Rider</Text>
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: '#16a34a' }]} onPress={() => setShowCompleteConfirmation(true)}>
-                  <Text style={styles.primaryText}>Mark as Delivered</Text>
+                <TouchableOpacity
+                  style={[styles.primaryBtn, { backgroundColor: '#ef4444' }]}
+                  onPress={cancelOrder}
+                  disabled={isLoading}
+                >
+                  <Ionicons name="close-circle" size={16} color="#fff" />
+                  <Text style={styles.primaryText}>{isLoading ? 'Cancelling...' : 'Cancel Order'}</Text>
                 </TouchableOpacity>
               </View>
             </>
