@@ -7,6 +7,7 @@ import HelpModal from '@/components/sugo/HelpModal';
 import LoadingOverlay from '@/components/sugo/LoadingOverlay';
 import Modal from '@/components/sugo/Modal';
 import NotificationsModal from '@/components/sugo/NotificationsModal';
+import ProfilePictureModal from '@/components/sugo/ProfilePictureModal';
 import SearchModal from '@/components/sugo/SearchModal';
 import SectionCard from '@/components/sugo/SectionCard';
 import ServiceSelector from '@/components/sugo/ServiceSelector';
@@ -14,13 +15,14 @@ import SettingsModal from '@/components/sugo/SettingsModal';
 import ShareModal from '@/components/sugo/ShareModal';
 import SplashScreen from '@/components/sugo/SplashScreen';
 import Toast from '@/components/sugo/Toast';
-import { getCurrentUser, signInUserWithPhone, signOutUser, SignUpData, signUpUser, getUserProfile, UserProfile, getUserAddresses, Address } from '@/lib/auth';
+import { getCurrentUser, signInUserWithPhone, signOutUser, SignUpData, signUpUser, getUserProfile, UserProfile, getUserAddresses, Address, createAddress, updateAddress, deleteAddress, setDefaultAddress, CreateAddressData, UpdateAddressData, updateUserProfile, UpdateProfileData, changeUserPassword } from '@/lib/auth';
+import { uploadProfilePicture } from '@/lib/profilePictureService';
 import { supabase } from '@/lib/supabase';
 import { useOrderRealtime } from '@/hooks/use-order-realtime';
 import { notifyRiderAccepted, notifyNewMessage, notifyOrderStatusChanged, getUserNotifications, getUnreadNotificationCount, markAllNotificationsAsRead } from '@/lib/notificationService';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Linking, Platform } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Linking, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type Screen = 'splash' | 'login' | 'signup' | 'password' | 'otp' | 'home' | 'orders' | 'profile' | 'deliveries' | 'earnings';
@@ -50,6 +52,7 @@ export default function SugoScreen() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [userAddresses, setUserAddresses] = useState<Address[]>([]);
   const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const [isUploadingProfilePicture, setIsUploadingProfilePicture] = useState(false);
 
   const [currentOrder, setCurrentOrder] = useState<any>(null);
   const [currentDelivery, setCurrentDelivery] = useState<any>(null);
@@ -89,6 +92,26 @@ export default function SugoScreen() {
   const [showShare, setShowShare] = useState(false);
   const [showFindingRider, setShowFindingRider] = useState(false);
   const [isBookingDelivery, setIsBookingDelivery] = useState(false);
+  const [showProfilePictureModal, setShowProfilePictureModal] = useState(false);
+
+  // Address CRUD state
+  const [showAddAddress, setShowAddAddress] = useState(false);
+  const [showEditAddress, setShowEditAddress] = useState(false);
+  const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
+
+  // Address form state
+  const [addressName, setAddressName] = useState('');
+  const [fullAddress, setFullAddress] = useState('');
+  const [isDefaultAddress, setIsDefaultAddress] = useState(false);
+
+  // Profile form state
+  const [editProfileName, setEditProfileName] = useState('');
+  const [editProfileEmail, setEditProfileEmail] = useState('');
+
+  // Password form state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
   // OTP and Auth states
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -1548,6 +1571,349 @@ export default function SugoScreen() {
     }
   };
 
+  const handleProfilePicturePress = () => {
+    if (userProfile?.avatar_url) {
+      setShowProfilePictureModal(true);
+    } else {
+      handleProfilePictureUpload();
+    }
+  };
+
+  const handleProfilePictureUpload = async () => {
+    if (!currentUser) {
+      showToastMessage('You must be logged in to update your profile picture', 'error');
+      return;
+    }
+
+    setIsUploadingProfilePicture(true);
+    setShowProfilePictureModal(false);
+
+    try {
+      // Step 1: Select image
+      const { selectProfilePicture } = await import('@/lib/profilePictureService');
+      const imageUri = await selectProfilePicture();
+
+      if (!imageUri) {
+        showToastMessage('No image selected', 'info');
+        return;
+      }
+
+      showToastMessage('Image selected, uploading...', 'info');
+
+      // Step 2: Delete old profile picture if it exists
+      if (userProfile?.avatar_url) {
+        try {
+          const { supabase } = await import('@/lib/supabase');
+
+          // Extract file path from the Supabase URL
+          // URL format: https://project_id.supabase.co/storage/v1/object/public/avatars/user_id/avatar.jpg
+          const urlParts = userProfile.avatar_url.split('/');
+          const fileName = urlParts[urlParts.length - 1]; // avatar.jpg
+          const userId = urlParts[urlParts.length - 2];   // user_id
+          const filePath = `${userId}/${fileName}`;
+
+          // Delete old avatar from storage
+          const { error: deleteError } = await supabase.storage
+            .from('avatars')
+            .remove([filePath]);
+
+          if (deleteError) {
+            console.error('Failed to delete old profile picture:', deleteError);
+            showToastMessage('Warning: Could not delete old profile picture', 'info');
+          }
+        } catch (deleteError) {
+          console.error('Error deleting old profile picture:', deleteError);
+          showToastMessage('Warning: Error deleting old profile picture', 'info');
+        }
+      }
+
+      // Step 3: Upload new image using Supabase client
+      const { supabase } = await import('@/lib/supabase');
+
+      // Convert URI to blob
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+
+      // Upload to Supabase storage
+      const { error } = await supabase.storage
+        .from('avatars')
+        .upload(`${currentUser.id}/avatar.jpg`, blob, {
+          contentType: 'image/jpeg',
+          upsert: true,
+        });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(`${currentUser.id}/avatar.jpg`);
+
+      // Update user profile
+      const { updateUserAvatar } = await import('@/lib/userService');
+      const updateResult = await updateUserAvatar(currentUser.id, publicUrl);
+
+      if (updateResult.success) {
+        setUserProfile(prev => prev ? { ...prev, avatar_url: publicUrl } : null);
+        showToastMessage('Profile picture updated successfully', 'success');
+      } else {
+        throw new Error(updateResult.error || 'Failed to update profile');
+      }
+
+    } catch (error) {
+      showToastMessage('Upload error: ' + (error as Error).message, 'error');
+    } finally {
+      setIsUploadingProfilePicture(false);
+    }
+  };
+
+  // Address CRUD functions
+  const handleAddAddress = async () => {
+    if (!currentUser || !addressName.trim() || !fullAddress.trim()) {
+      showToastMessage('Please fill in all fields', 'error');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const addressData: CreateAddressData = {
+        user_id: currentUser.id,
+        address_name: addressName.trim(),
+        full_address: fullAddress.trim(),
+        is_default: false // Set to false initially, will handle default separately
+      };
+
+      const result = await createAddress(addressData);
+      if (result.success) {
+        let createdAddress = result.address;
+
+        // If user wants to set this as default, handle that separately
+        if (isDefaultAddress && createdAddress) {
+          const defaultResult = await setDefaultAddress(currentUser.id, createdAddress.id);
+          if (!defaultResult.success) {
+            showToastMessage(defaultResult.error || 'Failed to set default address', 'error');
+            setIsLoading(false);
+            return;
+          }
+        }
+
+        // Refresh addresses to get the latest state
+        const addressesResult = await getUserAddresses(currentUser.id);
+        if (addressesResult.success && addressesResult.addresses) {
+          setUserAddresses(addressesResult.addresses);
+        }
+
+        // Clear form and close modal
+        setAddressName('');
+        setFullAddress('');
+        setIsDefaultAddress(false);
+        setShowAddAddress(false);
+        showToastMessage('Address added successfully', 'success');
+      } else {
+        showToastMessage(result.error || 'Failed to add address', 'error');
+      }
+    } catch (error) {
+      showToastMessage('An error occurred while adding address', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdateAddress = async () => {
+    if (!selectedAddress || !addressName.trim() || !fullAddress.trim()) {
+      showToastMessage('Please fill in all fields', 'error');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // First update the address details
+      const updateData: UpdateAddressData = {
+        address_name: addressName.trim(),
+        full_address: fullAddress.trim(),
+        is_default: false // Set to false initially, will handle default separately
+      };
+
+      const result = await updateAddress(selectedAddress.id, updateData);
+      if (result.success) {
+        // If user wants to set this as default, handle that separately
+        if (isDefaultAddress && !selectedAddress.is_default) {
+          const defaultResult = await setDefaultAddress(currentUser.id, selectedAddress.id);
+          if (!defaultResult.success) {
+            showToastMessage(defaultResult.error || 'Failed to set default address', 'error');
+            setIsLoading(false);
+            return;
+          }
+        }
+
+        // Refresh addresses
+        const addressesResult = await getUserAddresses(currentUser.id);
+        if (addressesResult.success && addressesResult.addresses) {
+          setUserAddresses(addressesResult.addresses);
+        }
+
+        // Clear form and close modal
+        setSelectedAddress(null);
+        setAddressName('');
+        setFullAddress('');
+        setIsDefaultAddress(false);
+        setShowEditAddress(false);
+        showToastMessage('Address updated successfully', 'success');
+      } else {
+        showToastMessage(result.error || 'Failed to update address', 'error');
+      }
+    } catch (error) {
+      showToastMessage('An error occurred while updating address', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteAddress = async () => {
+    if (!selectedAddress) return;
+
+    // Show confirmation using React Native Alert
+    Alert.alert(
+      'Delete Address',
+      `Are you sure you want to delete "${selectedAddress.address_name}"? This action cannot be undone.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setIsLoading(true);
+            try {
+              const result = await deleteAddress(selectedAddress.id);
+              if (result.success) {
+                // Refresh addresses
+                const addressesResult = await getUserAddresses(currentUser.id);
+                if (addressesResult.success && addressesResult.addresses) {
+                  setUserAddresses(addressesResult.addresses);
+                }
+
+                // Clear selection and close modal
+                setSelectedAddress(null);
+                setShowEditAddress(false);
+                showToastMessage('Address deleted successfully', 'success');
+              } else {
+                showToastMessage(result.error || 'Failed to delete address', 'error');
+              }
+            } catch (error) {
+              showToastMessage('An error occurred while deleting address', 'error');
+            } finally {
+              setIsLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  
+  const openEditAddressModal = (address: Address) => {
+    setSelectedAddress(address);
+    setAddressName(address.address_name);
+    setFullAddress(address.full_address);
+    setIsDefaultAddress(address.is_default);
+    setShowEditAddress(true);
+  };
+
+  // Profile update functions
+  const handleUpdateProfile = async () => {
+    if (!currentUser || !editProfileName.trim() || !editProfileEmail.trim()) {
+      showToastMessage('Please fill in all required fields', 'error');
+      return;
+    }
+
+    // Simple email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(editProfileEmail.trim())) {
+      showToastMessage('Please enter a valid email address', 'error');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const updateData: UpdateProfileData = {
+        full_name: editProfileName.trim(),
+        email: editProfileEmail.trim()
+      };
+
+      const result = await updateUserProfile(currentUser.id, updateData);
+      if (result.success) {
+        // Refresh profile data
+        const profileResult = await getUserProfile(currentUser.id);
+        if (profileResult.success && profileResult.profile) {
+          setUserProfile(profileResult.profile);
+        }
+
+        // Clear form and close modal
+        setEditProfileName('');
+        setEditProfileEmail('');
+        setShowEditProfile(false);
+        showToastMessage('Profile updated successfully', 'success');
+      } else {
+        showToastMessage(result.error || 'Failed to update profile', 'error');
+      }
+    } catch (error) {
+      showToastMessage('An error occurred while updating profile', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!currentPassword.trim() || !newPassword.trim() || !confirmNewPassword.trim()) {
+      showToastMessage('Please fill in all fields', 'error');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      showToastMessage('Password must be at least 6 characters', 'error');
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      showToastMessage('Passwords do not match', 'error');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const result = await changeUserPassword(newPassword);
+      if (result.success) {
+        // Clear form and close modal
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmNewPassword('');
+        setShowChangePassword(false);
+        showToastMessage('Password changed successfully', 'success');
+      } else {
+        showToastMessage(result.error || 'Failed to change password', 'error');
+      }
+    } catch (error) {
+      showToastMessage('An error occurred while changing password', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Function to pre-fill edit profile modal
+  const openEditProfileModal = () => {
+    if (userProfile) {
+      setEditProfileName(userProfile.full_name);
+      setEditProfileEmail(userProfile.email);
+    }
+    setShowEditProfile(true);
+  };
+
+  
   const bottomItems = useMemo(() => {
     if (userType === 'rider') {
       return [
@@ -1967,7 +2333,7 @@ export default function SugoScreen() {
                   <Row label="Email" value={currentUser?.email || "N/A"} />
                   <Row label="Vehicle" value={vehicleBrand && plateNumber ? `${vehicleBrand} - ${plateNumber}` : "Not set"} />
                 </SectionCard>
-                <TouchableOpacity style={[styles.secondaryBtn, { borderColor: '#dc2626' }]} onPress={() => setShowEditProfile(true)}>
+                <TouchableOpacity style={[styles.secondaryBtn, { borderColor: '#dc2626' }]} onPress={openEditProfileModal}>
                   <Text style={{ color: '#dc2626', fontWeight: '600' }}>Edit Profile</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -2170,6 +2536,9 @@ export default function SugoScreen() {
               <Header
                 title={userProfile?.full_name || 'Loading...'}
                 subtitle={userProfile?.phone_number || '+63 912 345 6789'}
+                showProfilePicture
+                userProfile={userProfile}
+                onProfilePicturePress={handleProfilePicturePress}
               />
               <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
                 <SectionCard title="Personal Information">
@@ -2181,12 +2550,17 @@ export default function SugoScreen() {
                   <View style={{ gap: 12 }}>
                     {userAddresses.length > 0 ? (
                       userAddresses.map((address) => (
-                        <AddressRow
+                        <TouchableOpacity
                           key={address.id}
-                          label={address.address_name}
-                          address={address.full_address}
-                          isDefault={address.is_default}
-                        />
+                          onPress={() => openEditAddressModal(address)}
+                          style={{ backgroundColor: '#f9fafb', borderRadius: 12, padding: 12 }}
+                        >
+                          <AddressRow
+                            label={address.address_name}
+                            address={address.full_address}
+                            isDefault={address.is_default}
+                          />
+                        </TouchableOpacity>
                       ))
                     ) : (
                       <View style={{ alignItems: 'center', paddingVertical: 20 }}>
@@ -2194,6 +2568,13 @@ export default function SugoScreen() {
                         <Text style={{ color: '#6b7280', marginTop: 8 }}>No saved addresses yet</Text>
                       </View>
                     )}
+                    <TouchableOpacity
+                      style={styles.primaryBtn}
+                      onPress={() => setShowAddAddress(true)}
+                    >
+                      <Ionicons name="add" size={18} color="#fff" />
+                      <Text style={styles.primaryText}>Add Address</Text>
+                    </TouchableOpacity>
                   </View>
                 </SectionCard>
                 <SectionCard title="Payment Methods">
@@ -2204,7 +2585,7 @@ export default function SugoScreen() {
                   </View>
                 </SectionCard>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TouchableOpacity style={[styles.secondaryBtn, { flex: 1 }]} onPress={() => setShowEditProfile(true)}>
+                  <TouchableOpacity style={[styles.secondaryBtn, { flex: 1 }]} onPress={openEditProfileModal}>
                     <Ionicons name="pencil" size={18} color="#dc2626" />
                     <Text style={{ color: '#dc2626', fontWeight: '600' }}>Edit</Text>
                   </TouchableOpacity>
@@ -2507,23 +2888,21 @@ export default function SugoScreen() {
         <View style={{ gap: 12, marginBottom: 16 }}>
           <TextInput
             placeholder="Full Name"
-            defaultValue={userProfile?.full_name || ''}
-            style={styles.input}
-            placeholderTextColor="#9ca3af"
-          />
-          <TextInput
-            placeholder="Phone"
-            defaultValue={userProfile?.phone_number || ''}
+            value={editProfileName}
+            onChangeText={setEditProfileName}
             style={styles.input}
             placeholderTextColor="#9ca3af"
           />
           <TextInput
             placeholder="Email"
-            defaultValue={userProfile?.email || ''}
+            value={editProfileEmail}
+            onChangeText={setEditProfileEmail}
             style={styles.input}
             placeholderTextColor="#9ca3af"
+            keyboardType="email-address"
+            autoCapitalize="none"
           />
-          <TouchableOpacity style={styles.primaryBtn}>
+          <TouchableOpacity style={styles.primaryBtn} onPress={handleUpdateProfile}>
             <Text style={styles.primaryText}>Save Changes</Text>
           </TouchableOpacity>
         </View>
@@ -2531,10 +2910,31 @@ export default function SugoScreen() {
 
       <Modal visible={showChangePassword} onClose={() => setShowChangePassword(false)} title="Change Password">
         <View style={{ gap: 12, marginBottom: 16 }}>
-          <TextInput placeholder="Current Password" secureTextEntry style={styles.input} placeholderTextColor="#9ca3af" />
-          <TextInput placeholder="New Password" secureTextEntry style={styles.input} placeholderTextColor="#9ca3af" />
-          <TextInput placeholder="Confirm New Password" secureTextEntry style={styles.input} placeholderTextColor="#9ca3af" />
-          <TouchableOpacity style={styles.primaryBtn}>
+          <TextInput
+            placeholder="Current Password"
+            value={currentPassword}
+            onChangeText={setCurrentPassword}
+            secureTextEntry
+            style={styles.input}
+            placeholderTextColor="#9ca3af"
+          />
+          <TextInput
+            placeholder="New Password"
+            value={newPassword}
+            onChangeText={setNewPassword}
+            secureTextEntry
+            style={styles.input}
+            placeholderTextColor="#9ca3af"
+          />
+          <TextInput
+            placeholder="Confirm New Password"
+            value={confirmNewPassword}
+            onChangeText={setConfirmNewPassword}
+            secureTextEntry
+            style={styles.input}
+            placeholderTextColor="#9ca3af"
+          />
+          <TouchableOpacity style={styles.primaryBtn} onPress={handleChangePassword}>
             <Text style={styles.primaryText}>Change Password</Text>
           </TouchableOpacity>
         </View>
@@ -2683,7 +3083,7 @@ export default function SugoScreen() {
           onClose={() => setShowSettings(false)}
           onEditProfile={() => {
             setShowSettings(false);
-            setShowEditProfile(true);
+            openEditProfileModal();
           }}
           onChangePassword={() => {
             setShowSettings(false);
@@ -2699,6 +3099,15 @@ export default function SugoScreen() {
           }}
         />
       </Modal>
+
+      {/* Profile Picture Modal */}
+      <ProfilePictureModal
+        visible={showProfilePictureModal}
+        onClose={() => setShowProfilePictureModal(false)}
+        imageUrl={userProfile?.avatar_url}
+        onReplace={handleProfilePictureUpload}
+        isLoading={isUploadingProfilePicture}
+      />
 
       {/* Share Modal */}
       <Modal visible={showShare} onClose={() => setShowShare(false)}>
@@ -2750,12 +3159,86 @@ export default function SugoScreen() {
         </Modal>
       )}
 
+      {/* Add Address Modal */}
+      <Modal visible={showAddAddress} onClose={() => setShowAddAddress(false)} title="Add New Address">
+        <View style={{ gap: 12, marginBottom: 16 }}>
+          <TextInput
+            placeholder="Address Name (e.g., Home, Office)"
+            style={styles.input}
+            value={addressName}
+            onChangeText={setAddressName}
+            placeholderTextColor="#9ca3af"
+          />
+          <TextInput
+            placeholder="Full Address"
+            style={[styles.input, { height: 100 }]}
+            value={fullAddress}
+            onChangeText={setFullAddress}
+            multiline
+            placeholderTextColor="#9ca3af"
+          />
+          <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 }}
+            onPress={() => setIsDefaultAddress(!isDefaultAddress)}
+          >
+            <View style={[styles.checkbox, isDefaultAddress && { backgroundColor: '#dc2626' }]} />
+            <Text style={{ color: '#111827', fontSize: 14 }}>Set as default address</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.primaryBtn} onPress={handleAddAddress}>
+            <Text style={styles.primaryText}>Add Address</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* Edit Address Modal */}
+      <Modal visible={showEditAddress} onClose={() => setShowEditAddress(false)} title="Edit Address">
+        <View style={{ gap: 12, marginBottom: 16 }}>
+          <TextInput
+            placeholder="Address Name (e.g., Home, Office)"
+            style={styles.input}
+            value={addressName}
+            onChangeText={setAddressName}
+            placeholderTextColor="#9ca3af"
+          />
+          <TextInput
+            placeholder="Full Address"
+            style={[styles.input, { height: 100 }]}
+            value={fullAddress}
+            onChangeText={setFullAddress}
+            multiline
+            placeholderTextColor="#9ca3af"
+          />
+          <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 }}
+            onPress={() => setIsDefaultAddress(!isDefaultAddress)}
+          >
+            <View style={[styles.checkbox, isDefaultAddress && { backgroundColor: '#dc2626' }]} />
+            <Text style={{ color: '#111827', fontSize: 14 }}>Set as default address</Text>
+          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity style={[styles.primaryBtn, { flex: 1, backgroundColor: '#dc2626' }]} onPress={handleUpdateAddress}>
+              <Ionicons name="checkmark" size={18} color="#fff" />
+              <Text style={styles.primaryText}>Save Changes</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.primaryBtn, { flex: 1, backgroundColor: '#ef4444' }]}
+              onPress={handleDeleteAddress}
+            >
+              <Ionicons name="trash" size={18} color="#fff" />
+              <Text style={styles.primaryText}>Delete</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+    
       {/* Toast - positioned at top */}
       <Toast message={toastMessage} type={toastType} visible={showToast} onHide={() => setShowToast(false)} />
 
       {/* Overlays */}
       <BottomBar items={bottomItems} current={currentScreen} onChange={(k) => setCurrentScreen(k as Screen)} />
-      {isLoading && !isBookingDelivery && <LoadingOverlay />}
+      {isLoading && !isBookingDelivery && <LoadingOverlay type="finding-rider" />}
+      {isUploadingProfilePicture && <LoadingOverlay type="uploading-picture" />}
     </View>
   );
 }
@@ -2824,6 +3307,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontWeight: '600', color: '#111827', marginBottom: 8, fontSize: 14 },
   paymentRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderWidth: 2, borderColor: '#e5e7eb', borderRadius: 12 },
   radio: { width: 16, height: 16, borderRadius: 999, borderWidth: 2, borderColor: '#e5e7eb' },
+  checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 2, borderColor: '#e5e7eb' },
   otpInput: { borderWidth: 2, borderColor: '#e5e7eb', borderRadius: 12, paddingVertical: 12, textAlign: 'center', fontWeight: '600', color: '#111827', fontSize: 18 },
   trackOrderBtn: { backgroundColor: '#2563eb', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 },
   callRiderBtn: { backgroundColor: '#4b5563', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 },
