@@ -1897,14 +1897,14 @@ export default function SugoScreen() {
                     <Text style={styles.primaryText}>Call Customer</Text>
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity
+                {/* <TouchableOpacity
                   style={[styles.primaryBtn, { backgroundColor: '#ef4444' }]}
                   onPress={cancelDelivery}
                   disabled={isLoading}
                 >
                   <Ionicons name="close-circle" size={16} color="#fff" />
                   <Text style={styles.primaryText}>{isLoading ? 'Cancelling...' : 'Cancel Order'}</Text>
-                </TouchableOpacity>
+                </TouchableOpacity> */}
               </View>
             </>
           ) : currentScreen === 'deliveries' ? (
@@ -2129,14 +2129,14 @@ export default function SugoScreen() {
                     <Text style={styles.primaryText}>Call Rider</Text>
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity
+                {/* <TouchableOpacity
                   style={[styles.primaryBtn, { backgroundColor: '#ef4444' }]}
                   onPress={cancelOrder}
                   disabled={isLoading}
                 >
                   <Ionicons name="close-circle" size={16} color="#fff" />
                   <Text style={styles.primaryText}>{isLoading ? 'Cancelling...' : 'Cancel Order'}</Text>
-                </TouchableOpacity>
+                </TouchableOpacity> */}
               </View>
             </>
           ) : currentScreen === 'orders' ? (
