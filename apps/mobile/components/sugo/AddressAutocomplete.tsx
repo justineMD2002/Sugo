@@ -21,6 +21,7 @@ interface AddressAutocompleteProps {
 interface Prediction {
   description: string;
   place_id: string;
+  placeId?: string; // New API uses placeId instead of place_id
 }
 
 const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
@@ -36,6 +37,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+  console.log('this is an api key: ' + apiKey)
 
   useEffect(() => {
     if (!apiKey) {
@@ -62,19 +64,33 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     setIsLoading(true);
 
     try {
+      // Using the new Places API (New)
       const response = await fetch(
-        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
-          text
-        )}&key=${apiKey}&components=country:ph&language=en`,
+        'https://places.googleapis.com/v1/places:autocomplete',
         {
-          method: 'GET',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': apiKey,
+          },
+          body: JSON.stringify({
+            input: text,
+            languageCode: 'en',
+            includedRegionCodes: ['PH'], // Philippines
+          }),
         }
       );
 
       const data = await response.json();
 
-      if (data.status === 'OK' && data.predictions) {
-        setPredictions(data.predictions);
+      if (data.suggestions && data.suggestions.length > 0) {
+        // Transform new API response to match our interface
+        const transformedPredictions = data.suggestions.map((suggestion: any) => ({
+          description: suggestion.placePrediction?.text?.text || '',
+          place_id: suggestion.placePrediction?.placeId || '',
+          placeId: suggestion.placePrediction?.placeId || '',
+        }));
+        setPredictions(transformedPredictions);
         setShowPredictions(true);
       } else {
         setPredictions([]);
@@ -98,7 +114,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     }
 
     // Set new timeout for debouncing
-    timeoutRef.current = setTimeout(() => {
+    (timeoutRef as any).current = setTimeout(() => {
       fetchPredictions(text);
     }, 400);
   };
