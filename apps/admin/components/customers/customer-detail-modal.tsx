@@ -35,8 +35,8 @@ export function CustomerDetailModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader className="flex flex-row items-center justify-between">
+      <DialogContent className="w-[80vw] max-w-[80vw]" showCloseButton={false}>
+        <DialogHeader className="flex flex-row items-start justify-between">
           <div>
             <DialogTitle className="text-2xl font-bold">{customer.customer}</DialogTitle>
             <p className="text-sm text-muted-foreground mt-1">{customer.id}</p>
@@ -45,9 +45,9 @@ export function CustomerDetailModal({
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            className="h-10 w-10 text-muted-foreground hover:text-foreground"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" />
           </Button>
         </DialogHeader>
 
@@ -67,29 +67,33 @@ export function CustomerDetailModal({
           {/* Contact Information */}
           <div className="space-y-4">
             <h3 className="text-sm font-medium text-muted-foreground">Contact Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-start space-x-3">
-                <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium">Phone Number</p>
-                  <p className="text-sm text-muted-foreground">{customer.contact}</p>
+            <Card className="border-0 bg-muted/70">
+              <CardContent className="p-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-start space-x-3">
+                    <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium">Phone Number</p>
+                      <p className="text-sm text-muted-foreground">{customer.contact}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-3">
+                    <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium">Email Address</p>
+                      <p className="text-sm text-muted-foreground">{customer.email}</p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-start space-x-3">
-                <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium">Email Address</p>
-                  <p className="text-sm text-muted-foreground">{customer.email}</p>
-                </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Activity Statistics */}
           <div className="space-y-4">
             <h3 className="text-sm font-medium text-muted-foreground">Activity Statistics</h3>
             <div className="grid grid-cols-2 gap-4">
-              <Card>
+              <Card className="border-0 bg-muted/70">
                 <CardContent className="text-center p-4">
                   <div className="flex items-center justify-center space-x-2 mb-2">
                     <ShoppingCart className="h-5 w-5 text-blue-600" />
@@ -98,7 +102,7 @@ export function CustomerDetailModal({
                   <div className="text-sm text-muted-foreground">Total Orders</div>
                 </CardContent>
               </Card>
-              <Card>
+              <Card className="border-0 bg-muted/70">
                 <CardContent className="text-center p-4">
                   <div className="flex items-center justify-center space-x-2 mb-2">
                     <Wrench className="h-5 w-5 text-green-600" />
@@ -111,14 +115,7 @@ export function CustomerDetailModal({
           </div>
 
           {/* Action Button */}
-          <div className="flex justify-center pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={onClose}
-            >
-              Close
-            </Button>
-          </div>
+          
         </div>
       </DialogContent>
     </Dialog>

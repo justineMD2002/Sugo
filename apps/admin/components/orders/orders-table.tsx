@@ -13,7 +13,7 @@ import {
   useReactTable,
   VisibilityState,
 } from "@tanstack/react-table"
-import { ArrowUpDown, ChevronDown, Eye } from "lucide-react"
+import { ArrowUpDown, ChevronDown, Eye, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -67,6 +67,8 @@ interface OrdersTableProps {
   pageSize?: number
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
+  onSearch?: (query: string) => void
+  isRefreshing?: boolean
 }
 
 const createColumns = (
@@ -74,9 +76,9 @@ const createColumns = (
 ): ColumnDef<OrderWithDetails>[] => [
   {
     accessorKey: "order_number",
-    header: "Order Number",
+    header: () => <div className="pl-4">Order Number</div>,
     cell: ({ row }) => (
-      <div className="font-mono text-sm">{row.getValue("order_number")}</div>
+      <div className="font-mono text-sm pl-4">{row.getValue("order_number")}</div>
     ),
   },
   {
@@ -146,7 +148,7 @@ const createColumns = (
   },
   {
     accessorKey: "total_amount",
-    header: () => <div className="text-right pr-4">Amount</div>,
+    header: () => <div className="pl-4">Amount</div>,
     cell: ({ row }) => {
       const amount = parseFloat(row.getValue("total_amount"))
       const formatted = new Intl.NumberFormat("en-PH", {
@@ -154,7 +156,7 @@ const createColumns = (
         currency: "PHP",
         minimumFractionDigits: 0,
       }).format(amount)
-      return <div className="text-right font-medium pr-4">{formatted}</div>
+      return <div className="font-medium pl-4">{formatted}</div>
     },
     size: 120,
   },
@@ -175,7 +177,7 @@ const createColumns = (
   },
 ]
 
-export function OrdersTable({ data, onViewOrder, totalCount, currentPage, totalPages, pageSize = 10, onPageChange, onPageSizeChange }: OrdersTableProps) {
+export function OrdersTable({ data, onViewOrder, totalCount, currentPage, totalPages, pageSize = 10, onPageChange, onPageSizeChange, onSearch, isRefreshing }: OrdersTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
@@ -202,17 +204,26 @@ export function OrdersTable({ data, onViewOrder, totalCount, currentPage, totalP
     },
   })
 
+  // Debounced search handling
+  const [searchValue, setSearchValue] = React.useState("")
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      onSearch?.(searchValue)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [searchValue])
+
   return (
     <div className="w-full">
       <div className="flex items-center space-x-4 mb-4">
         <Input
-          placeholder="Filter by customer or order ID..."
-          value={(table.getColumn("customer")?.getFilterValue() as string) ?? ""}
-          onChange={(event) =>
-            table.getColumn("customer")?.setFilterValue(event.target.value)
-          }
+          placeholder="Search orders..."
+          onChange={(event) => setSearchValue(event.target.value)}
           className="max-w-sm"
         />
+        {isRefreshing && (
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="ml-auto">

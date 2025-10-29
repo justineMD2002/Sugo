@@ -13,6 +13,8 @@ interface RidersProps {
   pageSize: number
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
+  onSearch: (query: string) => void
+  isRefreshing?: boolean
 }
 
 export function Riders({ 
@@ -22,7 +24,9 @@ export function Riders({
   totalPages,
   pageSize,
   onPageChange,
-  onPageSizeChange
+  onPageSizeChange,
+  onSearch,
+  isRefreshing
 }: RidersProps) {
   const [selectedRider, setSelectedRider] = React.useState<Rider | null>(null)
   const [isDetailModalOpen, setIsDetailModalOpen] = React.useState(false)
@@ -53,6 +57,8 @@ export function Riders({
         pageSize={pageSize}
         onPageChange={onPageChange}
         onPageSizeChange={onPageSizeChange}
+        onSearch={onSearch}
+        isRefreshing={isRefreshing}
       />
       
       <RiderDetailModal

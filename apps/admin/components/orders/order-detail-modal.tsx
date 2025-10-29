@@ -102,17 +102,17 @@ export function OrderDetailModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader className="flex flex-row items-center justify-between">
+      <DialogContent className="w-[80vw] max-w-[80vw]" showCloseButton={false}>
+        <DialogHeader className="flex flex-row items-start justify-between">
           <div>
-            <DialogTitle className="text-2xl font-bold">Order {order.order_number}</DialogTitle>
-            <p className="text-sm text-muted-foreground mt-1">{formatDate(order.created_at)}</p>
+            <DialogTitle className="text-xl font-semibold">Order {order.order_number}</DialogTitle>
+            <p className="text-xs text-muted-foreground mt-1">{formatDate(order.created_at)}</p>
           </div>
           <Button
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            className="h-9 w-9 text-muted-foreground hover:text-foreground"
           >
             <X className="h-4 w-4" />
           </Button>
@@ -120,17 +120,16 @@ export function OrderDetailModal({
 
         <div className="space-y-6">
           {/* Order Summary */}
-          <Card>
+          <Card className="border-0 bg-muted/70">
             <CardContent>
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Order Status</p>
-                  <div className="text-3xl font-bold text-foreground">{formatAmount(order.total_amount)}</div>
-                </div>
+                <p className="text-sm font-medium text-muted-foreground">Order Status</p>
                 <Badge variant={getStatusVariant(order.status)} className="text-sm">
                   {getStatusLabel(order.status)}
                 </Badge>
               </div>
+              <p className="text-sm font-medium text-muted-foreground mt-4">Amount</p>
+              <div className="text-2xl font-bold text-foreground">{formatAmount(order.total_amount)}</div>
             </CardContent>
           </Card>
 
@@ -187,15 +186,7 @@ export function OrderDetailModal({
           </div>
 
           {/* Action Button */}
-          <div className="flex justify-center pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={onClose}
-              className="w-full sm:w-auto"
-            >
-              Close
-            </Button>
-          </div>
+          
         </div>
       </DialogContent>
     </Dialog>

@@ -41,15 +41,20 @@ export function MessageBubble({ message, isOwnMessage, showAvatar = true }: Mess
     }
   }
 
+  const senderAny = message.sender as any
+  const isCustomer = senderAny?.user_type === "customer"
+  const shouldShowIdentity = !isOwnMessage && showAvatar && !isCustomer
+
   return (
     <div className={cn(
-      "flex gap-2 max-w-[75%]",
+      "flex max-w-[75%]",
+      shouldShowIdentity ? "gap-2" : "gap-0",
       isOwnMessage ? "ml-auto flex-row-reverse" : "mr-auto"
     )}>
-      {showAvatar && !isOwnMessage && (
+      {shouldShowIdentity && (
         <Avatar className="h-8 w-8 flex-shrink-0">
-          <AvatarImage src={message.sender?.avatar_url} />
-          <AvatarFallback className={cn("text-white text-xs", getSenderTypeColor(message.sender?.user_type))}>
+          <AvatarImage src={senderAny?.avatar_url} />
+          <AvatarFallback className={cn("text-white text-xs", getSenderTypeColor(senderAny?.user_type))}>
             {getSenderInitials(message.sender)}
           </AvatarFallback>
         </Avatar>
@@ -59,33 +64,43 @@ export function MessageBubble({ message, isOwnMessage, showAvatar = true }: Mess
         "flex flex-col gap-1",
         isOwnMessage ? "items-end" : "items-start"
       )}>
-        {!isOwnMessage && showAvatar && (
+        {!isOwnMessage && shouldShowIdentity && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span className="font-medium">{getSenderName(message.sender)}</span>
-            {message.sender?.user_type && (
+            {senderAny?.user_type && (
               <Badge variant="secondary" className="text-xs px-1 py-0">
-                {message.sender.user_type}
+                {senderAny.user_type}
               </Badge>
             )}
           </div>
         )}
         
         <div className={cn(
-          "rounded-lg px-3 py-2 text-sm",
-          isOwnMessage 
-            ? "bg-primary text-primary-foreground" 
-            : "bg-muted"
+          "rounded-lg text-sm",
+          message.message_type === "image" && message.attachment_url
+            ? "bg-transparent"
+            : isOwnMessage
+              ? "bg-primary text-primary-foreground px-3 py-2"
+              : "bg-muted px-3 py-2"
         )}>
           {message.message_type === "image" && message.attachment_url ? (
             <div className="space-y-2">
+              {/* If there's text, show it first inside a standard bubble */}
+              {message.message_text && (
+                <div
+                  className={cn(
+                    "rounded-lg px-3 py-2 text-sm w-fit max-w-[75vw]",
+                    isOwnMessage ? "bg-primary text-primary-foreground ml-auto" : "bg-muted"
+                  )}
+                >
+                  {message.message_text}
+                </div>
+              )}
               <img
                 src={message.attachment_url}
                 alt="Shared image"
-                className="max-w-xs rounded-lg border"
+                className="max-w-xs rounded-lg border bg-background object-contain"
               />
-              {message.message_text && (
-                <p className="text-sm">{message.message_text}</p>
-              )}
             </div>
           ) : message.message_type === "document" && message.attachment_url ? (
             <div className="space-y-2">

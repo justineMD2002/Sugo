@@ -63,6 +63,19 @@ export function ChatModal({
     currentUserId
   })
 
+  // Track pending status update to disable the dropdown until the parent reflects the change
+  const [pendingStatus, setPendingStatus] = React.useState<string | null>(null)
+  React.useEffect(() => {
+    if (pendingStatus && status === pendingStatus) {
+      setPendingStatus(null)
+    }
+  }, [status, pendingStatus])
+
+  const handleStatusSelect = (value: string) => {
+    setPendingStatus(value)
+    onStatusChange(value)
+  }
+
   // Mark messages as read when modal opens
   React.useEffect(() => {
     if (isOpen) {
@@ -80,8 +93,11 @@ export function ChatModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl h-[80vh] p-0" showCloseButton={false}>
-        <Card className="border-0 shadow-none h-full flex flex-col w-full">
+      <DialogContent className="max-w-6xl max-h-[85vh] h-[85vh] p-0 overflow-hidden" showCloseButton={false}>
+        <DialogHeader className="sr-only">
+          <DialogTitle>Chat for {ticketNumber}</DialogTitle>
+        </DialogHeader>
+        <Card className="border-0 shadow-none h-full flex flex-col w-full min-h-0">
           <CardHeader className="flex flex-row items-center justify-between">
             <div className="flex items-center space-x-4">
               <Avatar>
@@ -99,7 +115,7 @@ export function ChatModal({
               {/* <div className="text-right">
                 <p className="text-sm text-muted-foreground">{customerContact}</p>
               </div> */}
-              <Select value={status} onValueChange={onStatusChange}>
+              <Select value={status} onValueChange={handleStatusSelect} disabled={!!pendingStatus || status === "closed"}>
                 <SelectTrigger className="w-32">
                   <SelectValue />
                 </SelectTrigger>
@@ -110,10 +126,17 @@ export function ChatModal({
                   <SelectItem value="closed">Closed</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" size="icon"><X className="h-4 w-4" /></Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onClose}
+                className="h-9 w-9 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </Button>
             </div>
           </CardHeader>
-          <CardContent className="flex-1 overflow-y-auto">
+          <CardContent className="flex-1 overflow-y-auto min-h-0">
             {isLoading ? (
               <div className="flex items-center justify-center h-full">
                 <Loader2 className="h-6 w-6 animate-spin" />
@@ -126,20 +149,38 @@ export function ChatModal({
                 </div>
               </div>
             ) : (
-              <MessageList 
-                messages={messages} 
-                currentUserId={currentUserId}
-                className="p-4"
-              />
+              <div className="mx-auto w-full max-w-2xl">
+                <MessageList 
+                  messages={messages} 
+                  currentUserId={currentUserId}
+                />
+              </div>
             )}
           </CardContent>
-          <CardFooter>
-            <MessageInput 
-              onSendMessage={handleSendMessage}
-              placeholder="Type your message..."
-              className="w-full"
-            />
-          </CardFooter>
+          {status !== "closed" && (
+            <CardFooter>
+              <MessageInput 
+                ticketId={ticketId}
+                onSendMessage={handleSendMessage}
+                placeholder="Type your message..."
+                className="w-full"
+              />
+            </CardFooter>
+          )}
+          {status === "closed" && (
+            <CardFooter className="justify-center gap-2">
+              <span className="text-sm text-muted-foreground">This ticket is closed.</span>
+              <Button
+                variant="link"
+                size="sm"
+                onClick={() => handleStatusSelect("open")}
+                disabled={!!pendingStatus}
+                className="px-0 h-auto text-sm"
+              >
+                Reopen
+              </Button>
+            </CardFooter>
+          )}
         </Card>
       </DialogContent>
     </Dialog>

@@ -19,6 +19,8 @@ interface OrdersProps {
   pageSize: number
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
+  onSearch: (query: string) => void
+  isRefreshing?: boolean
 }
 
 export function Orders({ 
@@ -28,7 +30,9 @@ export function Orders({
   totalPages,
   pageSize,
   onPageChange,
-  onPageSizeChange
+  onPageSizeChange,
+  onSearch,
+  isRefreshing
 }: OrdersProps) {
   const [selectedOrder, setSelectedOrder] = React.useState<OrderWithDetails | null>(null)
   const [isDetailModalOpen, setIsDetailModalOpen] = React.useState(false)
@@ -54,6 +58,8 @@ export function Orders({
         pageSize={pageSize}
         onPageChange={onPageChange}
         onPageSizeChange={onPageSizeChange}
+        onSearch={onSearch}
+        isRefreshing={isRefreshing}
       />
       
       <OrderDetailModal

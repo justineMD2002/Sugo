@@ -13,7 +13,7 @@ import {
   useReactTable,
   VisibilityState,
 } from "@tanstack/react-table"
-import { ArrowUpDown, ChevronDown, Check, X, Eye } from "lucide-react"
+import { ArrowUpDown, ChevronDown, Check, X, Eye, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -63,6 +63,8 @@ interface ApplicationsTableProps {
   pageSize?: number
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
+  onSearch?: (query: string) => void
+  isRefreshing?: boolean
 }
 
 const createColumns = (
@@ -72,11 +74,11 @@ const createColumns = (
 ): ColumnDef<Application>[] => [
   {
     accessorKey: "applicant",
-    header: "Applicant",
+    header: () => <div className="pl-4">Applicant</div>,
     cell: ({ row }) => {
       const applicant = row.original
       return (
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-3 pl-4">
           <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
             {applicant.applicant.split(' ').map(n => n[0]).join('')}
           </div>
@@ -216,7 +218,9 @@ export function ApplicationsTable({
   totalPages,
   pageSize = 10,
   onPageChange,
-  onPageSizeChange
+  onPageSizeChange,
+  onSearch,
+  isRefreshing
 }: ApplicationsTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -244,17 +248,26 @@ export function ApplicationsTable({
     },
   })
 
+  // Debounced search handling
+  const [searchValue, setSearchValue] = React.useState("")
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      onSearch?.(searchValue)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [searchValue])
+
   return (
     <div className="w-full">
       <div className="flex items-center space-x-4 mb-4">
         <Input
-          placeholder="Filter by applicant name..."
-          value={(table.getColumn("applicant")?.getFilterValue() as string) ?? ""}
-          onChange={(event) =>
-            table.getColumn("applicant")?.setFilterValue(event.target.value)
-          }
+          placeholder="Search applicants..."
+          onChange={(event) => setSearchValue(event.target.value)}
           className="max-w-sm"
         />
+        {isRefreshing && (
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="ml-auto">

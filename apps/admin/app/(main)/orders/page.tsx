@@ -12,30 +12,41 @@ export default function OrdersPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [hasLoaded, setHasLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
   const [pageSize, setPageSize] = useState(10)
+  const [search, setSearch] = useState("")
 
-  const fetchOrders = async (page: number = currentPage, size: number = pageSize) => {
+  const fetchOrders = async (page: number = currentPage, size: number = pageSize, query: string = search) => {
     try {
-      setIsLoading(true)
+      if (!hasLoaded) setIsLoading(true)
+      else setIsRefreshing(true)
       setError(null)
-      const { data, count, totalPages } = await getOrdersWithDetails(page, size)
+      const { data, count, totalPages } = await getOrdersWithDetails(page, size, { search: query })
       setOrders(data)
       setTotalCount(count)
       setTotalPages(totalPages)
       setCurrentPage(page)
       setPageSize(size)
+      setHasLoaded(true)
     } catch (err) {
       console.error("Failed to fetch orders:", err)
       setError("Failed to load orders. Please try again later.")
     } finally {
       setIsLoading(false)
+      setIsRefreshing(false)
     }
   }
 
   const handlePageSizeChange = (newSize: number) => {
     fetchOrders(1, newSize)
+  }
+
+  const handleSearch = (query: string) => {
+    setSearch(query)
+    fetchOrders(1, pageSize, query)
   }
 
   useEffect(() => {
@@ -75,6 +86,8 @@ export default function OrdersPage() {
         pageSize={pageSize}
         onPageChange={fetchOrders}
         onPageSizeChange={handlePageSizeChange}
+        onSearch={handleSearch}
+        isRefreshing={isRefreshing}
       />
     </div>
   )

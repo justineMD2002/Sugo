@@ -15,6 +15,8 @@ interface ApplicationsProps {
   pageSize: number
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
+  onSearch: (query: string) => void
+  isRefreshing?: boolean
 }
 
 export function Applications({ 
@@ -24,7 +26,9 @@ export function Applications({
   totalPages,
   pageSize,
   onPageChange,
-  onPageSizeChange
+  onPageSizeChange,
+  onSearch,
+  isRefreshing
 }: ApplicationsProps) {
   const [selectedApplication, setSelectedApplication] = React.useState<Application | null>(null)
   const [isDetailModalOpen, setIsDetailModalOpen] = React.useState(false)
@@ -93,6 +97,8 @@ export function Applications({
         pageSize={pageSize}
         onPageChange={onPageChange}
         onPageSizeChange={onPageSizeChange}
+        onSearch={onSearch}
+        isRefreshing={isRefreshing}
       />
       
       <ApplicationDetailModal

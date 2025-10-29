@@ -13,6 +13,8 @@ interface CustomersProps {
   pageSize: number
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
+  onSearch: (query: string) => void
+  isRefreshing?: boolean
 }
 
 export function Customers({ 
@@ -22,7 +24,9 @@ export function Customers({
   totalPages,
   pageSize,
   onPageChange,
-  onPageSizeChange
+  onPageSizeChange,
+  onSearch,
+  isRefreshing
 }: CustomersProps) {
   const [selectedCustomer, setSelectedCustomer] = React.useState<Customer | null>(null)
   const [isDetailModalOpen, setIsDetailModalOpen] = React.useState(false)
@@ -48,6 +52,8 @@ export function Customers({
         pageSize={pageSize}
         onPageChange={onPageChange}
         onPageSizeChange={onPageSizeChange}
+        onSearch={onSearch}
+        isRefreshing={isRefreshing}
       />
       
       <CustomerDetailModal

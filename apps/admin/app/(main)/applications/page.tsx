@@ -12,30 +12,41 @@ export default function ApplicationsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [hasLoaded, setHasLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
   const [pageSize, setPageSize] = useState(10)
+  const [search, setSearch] = useState("")
 
-  const fetchApplications = async (page: number = currentPage, size: number = pageSize) => {
+  const fetchApplications = async (page: number = currentPage, size: number = pageSize, query: string = search) => {
     try {
-      setIsLoading(true)
+      if (!hasLoaded) setIsLoading(true)
+      else setIsRefreshing(true)
       setError(null)
-      const { data, count, totalPages } = await getApplicationsWithDetails(page, size, {})
+      const { data, count, totalPages } = await getApplicationsWithDetails(page, size, { search: query })
       setApplications(data)
       setTotalCount(count)
       setTotalPages(totalPages)
       setCurrentPage(page)
       setPageSize(size)
+      setHasLoaded(true)
     } catch (err) {
       console.error("Failed to fetch applications:", err)
       setError("Failed to load applications. Please try again later.")
     } finally {
       setIsLoading(false)
+      setIsRefreshing(false)
     }
   }
 
   const handlePageSizeChange = (newSize: number) => {
     fetchApplications(1, newSize)
+  }
+
+  const handleSearch = (query: string) => {
+    setSearch(query)
+    fetchApplications(1, pageSize, query)
   }
 
   useEffect(() => {
@@ -75,6 +86,8 @@ export default function ApplicationsPage() {
         pageSize={pageSize}
         onPageChange={fetchApplications}
         onPageSizeChange={handlePageSizeChange}
+        onSearch={handleSearch}
+        isRefreshing={isRefreshing}
       />
     </div>
   )

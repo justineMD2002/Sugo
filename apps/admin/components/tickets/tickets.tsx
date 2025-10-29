@@ -13,21 +13,13 @@ import {
   useReactTable,
   VisibilityState,
 } from "@tanstack/react-table"
-import { ArrowUpDown, ChevronDown, MoreHorizontal, Copy, Eye, MessageCircle } from "lucide-react"
+import { ArrowUpDown, ChevronDown, Eye, MessageCircle, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { useCurrentUser } from "@/hooks/use-current-user"
 import { updateTicketStatus } from "@/lib/api/tickets"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import {
   Table,
@@ -56,6 +48,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ChatModal } from "@/components/tickets/chat-modal"
+import { TicketDetailModal } from "@/components/tickets/ticket-detail-modal"
 import type { Ticket } from "@/lib/api/tickets"
 
 interface TicketsProps {
@@ -66,21 +59,24 @@ interface TicketsProps {
   pageSize: number
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
+  onSearch?: (query: string) => void
+  isRefreshing?: boolean
 }
 
 const createColumns = (onOpenChat: (ticketId: string, ticketNumber: string, service: string, status: string) => void): ColumnDef<Ticket>[] => [
   {
     accessorKey: "ticket_number",
-    header: "Ticket",
+    header: () => <div className="pl-4">Ticket</div>,
     cell: ({ row }) => (
-      <div className="font-mono text-sm">{row.getValue("ticket_number")}</div>
+      <div className="font-mono text-sm pl-4">{row.getValue("ticket_number")}</div>
     ),
   },
   {
     accessorKey: "customer",
     header: "Customer",
     cell: ({ row }) => {
-      const customer = row.original.customer?.[0]
+      const raw = row.original.customer as any
+      const customer = Array.isArray(raw) ? raw[0] : raw
       return (
         <div>
           <div className="text-sm font-medium">{customer?.full_name || "Unknown Customer"}</div>
@@ -150,37 +146,22 @@ const createColumns = (onOpenChat: (ticketId: string, ticketNumber: string, serv
     cell: ({ row }) => {
       const ticket = row.original
 
-      const handleChatClick = () => {
+      const handleChatClick = (e: React.MouseEvent) => {
+        e.stopPropagation()
         onOpenChat(ticket.id, ticket.ticket_number, ticket.service_type, ticket.status)
-      }
-
-      const handleCopy = () => {
-        navigator.clipboard.writeText(ticket.ticket_number)
-        // You could add a toast notification here
       }
 
       return (
         <div className="flex justify-center">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">Open menu</span>
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem onClick={handleCopy}>
-                <Copy className="mr-2 h-4 w-4" />
-                Copy ticket number
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleChatClick}>
-                <MessageCircle className="mr-2 h-4 w-4" />
-                Open chat
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleChatClick}
+            className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+            title="Open chat"
+          >
+            <MessageCircle className="h-4 w-4" />
+          </Button>
         </div>
       )
     },
@@ -194,7 +175,9 @@ export function Tickets({
   totalPages,
   pageSize,
   onPageChange,
-  onPageSizeChange
+  onPageSizeChange,
+  onSearch,
+  isRefreshing
 }: TicketsProps) {
   const { user, isLoading: userLoading } = useCurrentUser()
   const [sorting, setSorting] = React.useState<SortingState>([])
@@ -219,10 +202,16 @@ export function Tickets({
     status: "",
   })
 
+  const [detailModal, setDetailModal] = React.useState<{ isOpen: boolean; ticket: Ticket | null }>({
+    isOpen: false,
+    ticket: null,
+  })
+
   const handleOpenChat = (ticketId: string, ticketNumber: string, service: string, status: string) => {
     // Find the ticket to get customer data
     const ticket = initialTickets.find(t => t.id === ticketId)
-    const customer = ticket?.customer?.[0]
+    const raw = ticket?.customer as any
+    const customer = Array.isArray(raw) ? raw?.[0] : raw
     
     setChatModal({
       isOpen: true,
@@ -235,9 +224,21 @@ export function Tickets({
     })
   }
 
-  const handleViewTicket = (ticket: Ticket) => {
-    console.log("Viewing ticket:", ticket.ticket_number)
-    // Add your view logic here - could open a modal or navigate to details page
+  // Row click opens chat modal for that ticket
+  const openChatForTicket = (ticket: Ticket) => {
+    setChatModal({
+      isOpen: true,
+      ticketId: ticket.id,
+      ticketNumber: ticket.ticket_number,
+      service: ticket.service_type,
+      customerName: ticket.customer?.[0]?.full_name || "Unknown Customer",
+      customerContact: ticket.customer?.[0]?.phone_number || "N/A",
+      status: ticket.status,
+    })
+  }
+
+  const openDetailsForTicket = (ticket: Ticket) => {
+    setDetailModal({ isOpen: true, ticket })
   }
 
   const handleCloseChat = () => {
@@ -287,17 +288,26 @@ export function Tickets({
     },
   })
 
+  // Debounced search handling
+  const [searchValue, setSearchValue] = React.useState("")
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      onSearch?.(searchValue)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [searchValue])
+
   return (
     <>
       <div className="flex items-center space-x-4 mb-4">
         <Input
-          placeholder="Filter tickets..."
-          value={(table.getColumn("ticket_number")?.getFilterValue() as string) ?? ""}
-          onChange={(event) =>
-            table.getColumn("ticket_number")?.setFilterValue(event.target.value)
-          }
+          placeholder="Search tickets..."
+          onChange={(event) => setSearchValue(event.target.value)}
           className="max-w-sm"
         />
+        {isRefreshing && (
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="ml-auto">
@@ -352,7 +362,7 @@ export function Tickets({
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
                   className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => handleViewTicket(row.original)}
+                  onClick={() => openDetailsForTicket(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
@@ -455,6 +465,12 @@ export function Tickets({
         status={chatModal.status}
         onStatusChange={handleStatusChange}
         currentUserId={user?.id || ""}
+      />
+
+      <TicketDetailModal
+        isOpen={detailModal.isOpen}
+        onClose={() => setDetailModal({ isOpen: false, ticket: null })}
+        ticket={detailModal.ticket}
       />
     </>
   )

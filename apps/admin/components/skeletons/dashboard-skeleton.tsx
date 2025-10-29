@@ -6,9 +6,9 @@ export function DashboardSkeleton() {
       <div className="@container/main flex flex-1 flex-col gap-2">
         <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
           {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="px-4 lg:px-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="rounded-lg border bg-card p-6">
+              <div key={i} className="rounded-lg border bg-card p-6 h-[180px]">
                 <div className="flex items-center justify-between">
                   <div>
                     <Skeleton className="h-4 w-20 mb-2" />

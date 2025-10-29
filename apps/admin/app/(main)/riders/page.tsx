@@ -12,30 +12,41 @@ export default function RidersPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [hasLoaded, setHasLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
   const [pageSize, setPageSize] = useState(10)
+  const [search, setSearch] = useState("")
 
-  const fetchRiders = async (page: number = currentPage, size: number = pageSize) => {
+  const fetchRiders = async (page: number = currentPage, size: number = pageSize, query: string = search) => {
     try {
-      setIsLoading(true)
+      if (!hasLoaded) setIsLoading(true)
+      else setIsRefreshing(true)
       setError(null)
-      const { data, count, totalPages } = await getRidersWithDetails(page, size, {})
+      const { data, count, totalPages } = await getRidersWithDetails(page, size, { search: query })
       setRiders(data)
       setTotalCount(count)
       setTotalPages(totalPages)
       setCurrentPage(page)
       setPageSize(size)
+      setHasLoaded(true)
     } catch (err) {
       console.error("Failed to fetch riders:", err)
       setError("Failed to load riders. Please try again later.")
     } finally {
       setIsLoading(false)
+      setIsRefreshing(false)
     }
   }
 
   const handlePageSizeChange = (newSize: number) => {
     fetchRiders(1, newSize)
+  }
+
+  const handleSearch = (query: string) => {
+    setSearch(query)
+    fetchRiders(1, pageSize, query)
   }
 
   useEffect(() => {
@@ -75,6 +86,7 @@ export default function RidersPage() {
         pageSize={pageSize}
         onPageChange={fetchRiders}
         onPageSizeChange={handlePageSizeChange}
+        onSearch={handleSearch}
       />
     </div>
   )

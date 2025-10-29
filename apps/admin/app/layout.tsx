@@ -1,16 +1,10 @@
-import type { Metadata } from "next";
-import { Roboto, Roboto_Mono } from "next/font/google";
-import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
 
-const roboto = Roboto({
-  variable: "--font-roboto",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "700"],
-});
-
-const robotoMono = Roboto_Mono({
-  variable: "--font-roboto-mono",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
   weight: ["300", "400", "500", "700"],
 });
@@ -28,11 +22,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${roboto.variable} ${robotoMono.variable} antialiased`}
+        className={`${inter.variable} antialiased font-sans`}
       >
         <ThemeProvider
           attribute="class"
-          defaultTheme="dark"
+          defaultTheme="light"
           enableSystem
           disableTransitionOnChange
         >

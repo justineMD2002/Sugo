@@ -36,11 +36,13 @@ export async function getRidersWithDetails(
   const supabase = createClient()
   const offset = (page - 1) * limit
 
-  // First, get all riders (users with user_type = 'rider')
+  // First, get all riders (users with user_type = 'rider') that have an APPROVED rider profile
+  // Use an inner join to only include users whose rider_profiles.status = 'approved'
   let ridersQuery = supabase
     .from("users")
-    .select("*", { count: "exact" })
+    .select("*, rider_profiles!inner(status)", { count: "exact" })
     .eq("user_type", "rider")
+    .eq("rider_profiles.status", "approved")
 
   // Apply search filter
   if (filters.search) {
@@ -93,7 +95,7 @@ export async function getRidersWithDetails(
   // Get rider profiles for additional data (vehicle, plate number, etc.)
   const { data: profilesData, error: profilesError } = await supabase
     .from("rider_profiles")
-    .select("user_id, service_type, vehicle_brand, vehicle_model, vehicle_color, plate_number, is_available, is_verified, is_online")
+    .select("user_id, service_type, vehicle_brand, vehicle_model, vehicle_color, plate_number, is_available, status, is_online")
     .in("user_id", riderIds)
 
   if (profilesError) {
@@ -182,9 +184,14 @@ export async function getRiderById(id: string): Promise<Rider | null> {
   // Get rider profile
   const { data: profile, error: profileError } = await supabase
     .from("rider_profiles")
-    .select("service_type, vehicle_brand, vehicle_model, vehicle_color, plate_number, is_available, is_verified, is_online")
+    .select("service_type, vehicle_brand, vehicle_model, vehicle_color, plate_number, is_available, status, is_online")
     .eq("user_id", id)
     .single()
+
+  // Only allow approved riders to be fetched
+  if (!profile || profile.status !== "approved") {
+    return null
+  }
 
   // Get delivery statistics
   const { data: deliveriesData, error: deliveriesError } = await supabase
@@ -229,20 +236,21 @@ export async function getRiderStats(): Promise<{
 }> {
   const supabase = createClient()
   
-  // Get total riders count
+  // Get total approved riders count
   const { count: totalRiders, error: ridersError } = await supabase
-    .from("users")
-    .select("*", { count: "exact", head: true })
-    .eq("user_type", "rider")
+    .from("rider_profiles")
+    .select("user_id", { count: "exact", head: true })
+    .eq("status", "approved")
 
   if (ridersError) {
     throw new Error(`Failed to fetch riders count: ${ridersError.message}`)
   }
 
-  // Get rider status counts
+  // Get rider status counts (only approved riders)
   const { data: statusData, error: statusError } = await supabase
     .from("rider_profiles")
     .select("is_online, is_available")
+    .eq("status", "approved")
 
   if (statusError) {
     throw new Error(`Failed to fetch rider status: ${statusError.message}`)

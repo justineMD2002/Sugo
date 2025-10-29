@@ -92,8 +92,8 @@ export function RiderDetailModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader className="flex flex-row items-center justify-between">
+      <DialogContent className="w-[80vw] max-w-[80vw]" showCloseButton={false}>
+        <DialogHeader className="flex flex-row items-start justify-between">
           <div>
             <DialogTitle className="text-2xl font-bold">{rider.rider}</DialogTitle>
             <p className="text-sm text-muted-foreground mt-1">{rider.id}</p>
@@ -102,9 +102,9 @@ export function RiderDetailModal({
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            className="h-10 w-10 text-muted-foreground hover:text-foreground"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" />
           </Button>
         </DialogHeader>
 
@@ -125,13 +125,13 @@ export function RiderDetailModal({
         <div className="space-y-6">
           {/* Performance Metrics */}
           <div className="grid grid-cols-3 gap-4">
-            <Card>
+            <Card className="border-0 bg-muted/70">
               <CardContent className="text-center p-4">
                 <div className="text-2xl font-bold text-foreground">{rider.ratingCount}</div>
                 <div className="text-sm text-muted-foreground">Deliveries</div>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="border-0 bg-muted/70">
               <CardContent className="text-center p-4">
                 <div className="flex items-center justify-center space-x-1 text-2xl font-bold text-yellow-600">
                   <Star className="h-6 w-6 fill-current" />
@@ -140,7 +140,7 @@ export function RiderDetailModal({
                 <div className="text-sm text-muted-foreground">Rating</div>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="border-0 bg-muted/70">
               <CardContent className="text-center p-4">
                 <div className="text-2xl font-bold text-green-600">{formatEarnings(rider.earnings)}</div>
                 <div className="text-sm text-muted-foreground">Earnings</div>
@@ -148,6 +148,8 @@ export function RiderDetailModal({
             </Card>
           </div>
 
+          <Card className="border-0 bg-muted/70">
+            <CardContent className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <div className="flex items-start space-x-3">
@@ -185,11 +187,13 @@ export function RiderDetailModal({
               </div>
             </div>
           </div>
+            </CardContent>
+          </Card>
 
           {/* Current Status */}
           <div className="space-y-2">
             <p className="text-sm font-medium text-muted-foreground">Current Status</p>
-            <Card>
+            <Card className="border-0 bg-muted/70">
               <CardContent className="p-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
@@ -205,7 +209,7 @@ export function RiderDetailModal({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex justify-end space-x-3 pt-4 border-t">
+          <div className="flex justify-end space-x-3 pt-4">
             <Button
               variant="outline"
               onClick={onClose}

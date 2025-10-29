@@ -13,7 +13,7 @@ import {
   useReactTable,
   VisibilityState,
 } from "@tanstack/react-table"
-import { ArrowUpDown, ChevronDown, Eye } from "lucide-react"
+import { ArrowUpDown, ChevronDown, Eye, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -61,6 +61,8 @@ interface CustomersTableProps {
   pageSize?: number
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
+  onSearch?: (query: string) => void
+  isRefreshing?: boolean
 }
 
 const createColumns = (
@@ -68,11 +70,11 @@ const createColumns = (
 ): ColumnDef<Customer>[] => [
   {
     accessorKey: "customer",
-    header: "Customer",
+    header: () => <div className="pl-4">Customer</div>,
     cell: ({ row }) => {
       const customer = row.original
       return (
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-3 pl-4">
           <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
             {customer.customer.split(' ').map(n => n[0]).join('')}
           </div>
@@ -125,7 +127,9 @@ export function CustomersTable({
     totalPages,
     pageSize = 10,
     onPageChange,
-    onPageSizeChange
+    onPageSizeChange,
+    onSearch,
+    isRefreshing
 }: CustomersTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -153,17 +157,26 @@ export function CustomersTable({
     },
   })
 
+  // Debounced search handling
+  const [searchValue, setSearchValue] = React.useState("")
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      onSearch?.(searchValue)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [searchValue])
+
   return (
     <div className="w-full">
       <div className="flex items-center space-x-4 mb-4">
         <Input
-          placeholder="Filter by customer name..."
-          value={(table.getColumn("customer")?.getFilterValue() as string) ?? ""}
-          onChange={(event) =>
-            table.getColumn("customer")?.setFilterValue(event.target.value)
-          }
+          placeholder="Search customers..."
+          onChange={(event) => setSearchValue(event.target.value)}
           className="max-w-sm"
         />
+        {isRefreshing && (
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="ml-auto">

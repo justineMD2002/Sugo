@@ -87,8 +87,8 @@ export function ApplicationDetailModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader className="flex flex-row items-center justify-between">
+      <DialogContent className="w-[80vw] max-w-[80vw]" showCloseButton={false}>
+        <DialogHeader className="flex flex-row items-start justify-between">
           <div>
             <DialogTitle className="text-2xl font-bold">{application.applicant}</DialogTitle>
             <p className="text-sm text-muted-foreground mt-1">{application.id}</p>
@@ -97,9 +97,9 @@ export function ApplicationDetailModal({
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            className="h-10 w-10 text-muted-foreground hover:text-foreground"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" />
           </Button>
         </DialogHeader>
 
@@ -118,6 +118,8 @@ export function ApplicationDetailModal({
         </div>
 
         <div className="space-y-6">
+            <Card className="border-0 bg-muted/70">
+              <CardContent className="p-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <div className="flex items-start space-x-3">
@@ -171,9 +173,11 @@ export function ApplicationDetailModal({
                 </div>
               </div>
             </div>
+              </CardContent>
+            </Card>
 
             {!isProcessed && (
-              <div className="flex justify-end space-x-3 pt-4 border-t">
+              <div className="flex justify-end space-x-3 pt-4">
                 <Button
                   variant="outline"
                   onClick={() => onReject(application)}
