@@ -153,6 +153,7 @@ export default function SugoScreen() {
   const [itemDescription, setItemDescription] = useState('');
   const [receiverName, setReceiverName] = useState('');
   const [receiverPhone, setReceiverPhone] = useState('');
+  const [activeAutocomplete, setActiveAutocomplete] = useState<'pickup' | 'delivery' | null>(null);
 
   // Add callOptions state
   const [callNumber, setCallNumber] = useState<string>("");
@@ -2233,24 +2234,32 @@ export default function SugoScreen() {
               </Header>
               <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
                 {selectedService === 'delivery' && (
-                  <SectionCard title="Locations">
-                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+                  <SectionCard title="Locations" zIndex={3000}>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, zIndex: 2000 }}>
                       <Ionicons name="location" size={20} color="#dc2626" style={{ marginTop: 18 }} />
-                      <View style={{ flex: 1 }}>
+                      <View style={{ flex: 1, zIndex: 2000 }}>
                         <AddressAutocomplete
                           placeholder="Pickup Location"
                           onAddressSelect={(address) => setPickupAddress(address)}
                           value={pickupAddress}
+                          zIndex={2000}
+                          isOpen={activeAutocomplete === 'pickup'}
+                          onFocus={() => setActiveAutocomplete('pickup')}
+                          onBlur={() => setActiveAutocomplete(null)}
                         />
                       </View>
                     </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 12 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 12, zIndex: 1000 }}>
                       <Ionicons name="location" size={20} color="#16a34a" style={{ marginTop: 18 }} />
-                      <View style={{ flex: 1 }}>
+                      <View style={{ flex: 1, zIndex: 1000 }}>
                         <AddressAutocomplete
                           placeholder="Delivery Location"
                           onAddressSelect={(address) => setDeliveryAddress(address)}
                           value={deliveryAddress}
+                          zIndex={1000}
+                          isOpen={activeAutocomplete === 'delivery'}
+                          onFocus={() => setActiveAutocomplete('delivery')}
+                          onBlur={() => setActiveAutocomplete(null)}
                         />
                       </View>
                     </View>
@@ -2284,7 +2293,7 @@ export default function SugoScreen() {
                     </TouchableOpacity>
                   </SectionCard>
                 ) : (
-                  <SectionCard title={selectedService === 'delivery' ? 'Order Details' : 'Service Request'}>
+                  <SectionCard title={selectedService === 'delivery' ? 'Order Details' : 'Service Request'} zIndex={1}>
                     {selectedService === 'delivery' ? (
                       <>
                         <TextInput

@@ -6,11 +6,12 @@ type SectionCardProps = {
   right?: React.ReactNode;
   style?: ViewStyle | ViewStyle[];
   children?: React.ReactNode;
+  zIndex?: number;
 };
 
-export default function SectionCard({ title, right, style, children }: SectionCardProps) {
+export default function SectionCard({ title, right, style, children, zIndex }: SectionCardProps) {
   return (
-    <View style={[styles.card, style]}>      
+    <View style={[styles.card, style, zIndex !== undefined && { zIndex }]}>      
       {(title || right) && (
         <View style={styles.headerRow}>
           {!!title && <Text style={styles.title}>{title}</Text>}
