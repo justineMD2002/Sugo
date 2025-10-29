@@ -44,6 +44,9 @@ type ServiceTicket = {
 
 export default function SugoScreen() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('splash');
+  const [pastOrders, setPastOrders] = useState<any[]>([]);
+  const [pastDeliveries, setPastDeliveries] = useState<any[]>([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [userType, setUserType] = useState<UserType>('customer');
   const [selectedService, setSelectedService] = useState<Service>('delivery');
   const [workerService, setWorkerService] = useState<Service>('delivery');
@@ -564,6 +567,87 @@ export default function SugoScreen() {
       console.error('Unexpected error fetching pending orders:', error);
     }
   };
+
+  // Load past orders for customers
+  const loadPastOrders = async () => {
+    if (!currentUser?.id) return;
+    setIsHistoryLoading(true);
+    try {
+      // Try a relational select: orders -> deliveries -> users (as rider)
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          deliveries:deliveries(
+            *,
+            rider:users(*)
+          )
+        `)
+        .eq('customer_id', currentUser.id)
+        .in('status', ['delivered', 'completed', 'cancelled'])
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error loading past orders with join:', error);
+        setPastOrders([]);
+        return;
+      }
+
+      const normalized = (data || []).map((o: any) => {
+        const delivery = Array.isArray(o.deliveries) ? o.deliveries[0] : o.deliveries;
+        const rider = delivery?.rider;
+        return {
+          ...o,
+          rider_name: o.rider_name || rider?.full_name || null,
+          rider_phone: o.rider_phone || rider?.phone_number || null,
+          rider_rating: o.rider_rating || rider?.rating || null,
+        };
+      });
+
+      setPastOrders(normalized);
+    } catch (e) {
+      console.error('Unexpected error loading past orders:', e);
+      setPastOrders([]);
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  };
+
+  // Load past deliveries for riders
+  const loadPastDeliveries = async () => {
+    if (!currentUser?.id) return;
+    setIsHistoryLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('deliveries')
+        .select(`*, order:orders(*)`)
+        .eq('rider_id', currentUser.id)
+        .or('is_completed.eq.true,status.eq.completed')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error loading past deliveries:', error);
+        setPastDeliveries([]);
+        return;
+      }
+      setPastDeliveries(data || []);
+    } catch (e) {
+      console.error('Unexpected error loading past deliveries:', e);
+      setPastDeliveries([]);
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  };
+
+  // Trigger history loads on screen change
+  useEffect(() => {
+    if (currentScreen === 'orders' && userType === 'customer') {
+      loadPastOrders();
+    }
+    if (currentScreen === 'deliveries' && userType === 'rider') {
+      loadPastDeliveries();
+    }
+  }, [currentScreen, userType, currentUser?.id]);
 
   // Accept order as a rider
   const acceptOrder = async (order: any) => {
@@ -2275,22 +2359,70 @@ export default function SugoScreen() {
             </>
           ) : currentScreen === 'deliveries' ? (
             <>
-              <Header title={`Past ${workerService === 'delivery' ? 'Deliveries' : 'Jobs'}`} subtitle={`Your ${workerService === 'delivery' ? 'delivery' : 'service'} history`} />
+              <Header title={`Past Deliveries`} subtitle={`Your delivery history`} />
               <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
-                {[1, 2, 3].map((i) => (
-                  <SectionCard key={i}>
-                    <Row label="Order ID" value={`DLV-28${40 + i}`} />
-                    <Row label="Status" value="Completed" valueTint="#16a34a" />
-                    <Row label="Customer" value="John Doe" />
-                    {workerService === 'delivery' && (
-                      <>
-                        <Row label="Pickup" value="Ayala Center" />
-                        <Row label="Drop-off" value="IT Park" />
-                      </>
-                    )}
-                    <Row label="Earnings" value="₱95" valueTint="#dc2626" />
+                {isHistoryLoading ? (
+                  <SectionCard>
+                    <Text style={{ color: '#6b7280' }}>Loading history...</Text>
                   </SectionCard>
-                ))}
+                ) : pastDeliveries.length === 0 ? (
+                  <SectionCard>
+                    <Text style={{ color: '#6b7280' }}>No past deliveries yet</Text>
+                  </SectionCard>
+                ) : (
+                  pastDeliveries.map((d: any) => (
+                    <SectionCard key={d.id}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <View>
+                          <Text style={styles.metaLabel}>Order ID</Text>
+                          <Text style={styles.orderIdText}>{d.order?.order_number || d.order_id}</Text>
+                        </View>
+                        <View style={styles.statusBadge}>
+                          <Text style={styles.statusBadgeText}>{(d.status || 'completed').toString().replace('_', ' ')}</Text>
+                        </View>
+                      </View>
+
+                      {d.order?.receiver_name ? (
+                        <View style={styles.riderCard}>
+                          <View style={styles.avatar}>
+                            <Ionicons name="person" size={22} color="#dc2626" />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontWeight: '700', color: '#111827' }}>{d.order?.receiver_name}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 }}>
+                              {!!d.order?.receiver_phone && (
+                                <Text style={{ color: '#6b7280', fontSize: 12 }}>{d.order?.receiver_phone}</Text>
+                              )}
+                            </View>
+                          </View>
+                        </View>
+                      ) : null}
+
+                      <View style={styles.rowInline}>
+                        <View style={styles.dotRed} />
+                        <Text style={{ color: '#6b7280' }}>Pickup: <Text style={{ color: '#111827', fontWeight: '600' }}>{d.order?.pickup_address || 'N/A'}</Text></Text>
+                      </View>
+                      <View style={styles.rowInline}>
+                        <View style={styles.dotGreen} />
+                        <Text style={{ color: '#6b7280' }}>Drop-off: <Text style={{ color: '#111827', fontWeight: '600' }}>{d.order?.delivery_address || 'N/A'}</Text></Text>
+                      </View>
+                      <View style={{ height: 1, backgroundColor: '#e5e7eb', marginVertical: 12 }} />
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <View>
+                          <Text style={styles.metaLabel}>Earnings</Text>
+                          <Text style={{ color: '#dc2626', fontWeight: '800', fontSize: 16 }}>₱{(typeof d.earnings === 'number' ? d.earnings : 0).toFixed(2)}</Text>
+                        </View>
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={styles.metaLabel}>Rating</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Ionicons name="star" size={16} color="#fbbf24" />
+                            <Text style={{ color: '#6b7280', fontWeight: '600' }}>{d.order?.rider_rating?.toFixed?.(1) || '4.8'}</Text>
+                          </View>
+                        </View>
+                      </View>
+                    </SectionCard>
+                  ))
+                )}
               </ScrollView>
             </>
           ) : currentScreen === 'earnings' ? (
@@ -2516,19 +2648,60 @@ export default function SugoScreen() {
                 onSettingsPress={() => setShowFilter(true)}
               />
               <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
-                {[{ id: 'DLV-2846', rider: 'John Driver', rating: '4.9', phone: '0923 456 7890', from: 'Ayala Center', to: 'Banilad', status: 'Completed' }].map((o) => (
-                  <SectionCard key={o.id}>
-                    <Row label="Order ID" value={o.id} />
-                    <Row label="Status" value={o.status} valueTint="#16a34a" />
-                    <Row label="Rider" value={`${o.rider} • ${o.phone}`} />
-                    <Row label="From" value={o.from} />
-                    <Row label="To" value={o.to} />
-                    <TouchableOpacity style={styles.secondaryBtn}>
-                      <Ionicons name="chatbubble" size={18} color="#16a34a" />
-                      <Text style={styles.secondaryText}>Chat</Text>
-                    </TouchableOpacity>
+                {isHistoryLoading ? (
+                  <SectionCard>
+                    <Text style={{ color: '#6b7280' }}>Loading history...</Text>
                   </SectionCard>
-                ))}
+                ) : pastOrders.length === 0 ? (
+                  <SectionCard>
+                    <Text style={{ color: '#6b7280' }}>No past orders yet</Text>
+                  </SectionCard>
+                ) : (
+                  pastOrders.map((o: any) => (
+                    <>
+                      <SectionCard key={`order-${o.id}`}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <View>
+                          <Text style={styles.metaLabel}>Order ID</Text>
+                          <Text style={styles.orderIdText}>{o.order_number || o.id}</Text>
+                        </View>
+                        <View style={styles.statusBadge}>
+                          <Text style={styles.statusBadgeText}>{(o.status || 'completed').toString().replace('_', ' ')}</Text>
+                        </View>
+                        </View>
+
+                      {o.rider_name ? (
+                        <View style={styles.riderCard}>
+                          <View style={styles.avatar}>
+                            <Ionicons name="person" size={22} color="#dc2626" />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontWeight: '700', color: '#111827' }}>{o.rider_name}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 }}>
+                              {!!o.rider_phone && (
+                                <Text style={{ color: '#6b7280', fontSize: 12 }}>{o.rider_phone}</Text>
+                              )}
+                            </View>
+                          </View>
+                        </View>
+                      ) : null}
+
+                        <View style={styles.rowInline}>
+                        <View style={styles.dotRed} />
+                        <Text style={{ color: '#6b7280' }}>From: <Text style={{ color: '#111827', fontWeight: '600' }}>{o.pickup_address || 'N/A'}</Text></Text>
+                        </View>
+                        <View style={styles.rowInline}>
+                        <View style={styles.dotGreen} />
+                        <Text style={{ color: '#6b7280' }}>To: <Text style={{ color: '#111827', fontWeight: '600' }}>{o.delivery_address || 'N/A'}</Text></Text>
+                        </View>
+                        <View style={styles.rowInline}>
+                          <Ionicons name="time-outline" size={14} color="#9ca3af" />
+                        <Text style={{ color: '#6b7280' }}>{(o.status || 'delivered').toString().replace('_', ' ')}</Text>
+                        </View>
+                      </SectionCard>
+                    </>
+                  ))
+                )}
               </ScrollView>
             </>
           ) : currentScreen === 'profile' ? (
@@ -3312,4 +3485,15 @@ const styles = StyleSheet.create({
   trackOrderBtn: { backgroundColor: '#2563eb', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 },
   callRiderBtn: { backgroundColor: '#4b5563', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 },
   errorText: { color: '#dc2626', fontSize: 12, marginTop: 4, textAlign: 'center' },
+  // History card styles
+  metaLabel: { color: '#6b7280', fontSize: 12 },
+  orderIdText: { fontSize: 16, fontWeight: '600', color: '#111827' },
+  statusBadge: { backgroundColor: '#d1fae5', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  statusBadgeText: { color: '#065f46', fontWeight: '700', fontSize: 12, textTransform: 'capitalize' },
+  riderCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fbe9ea', borderRadius: 12, padding: 12 },
+  avatar: { width: 36, height: 36, borderRadius: 999, backgroundColor: '#fee2e2', alignItems: 'center', justifyContent: 'center' },
+  rowInline: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dotRed: { width: 8, height: 8, borderRadius: 999, backgroundColor: '#ef4444' },
+  dotGreen: { width: 8, height: 8, borderRadius: 999, backgroundColor: '#10b981' },
+  dotGray: { width: 8, height: 8, borderRadius: 999, backgroundColor: '#9ca3af' },
 });
