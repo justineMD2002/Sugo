@@ -1,10 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { Send, Droplets, Image as ImageIcon, X } from "lucide-react"
+import { Droplets, X, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import {
   Dialog,
   DialogContent,
@@ -29,95 +28,53 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-
-interface Message {
-  id: string
-  text: string
-  timestamp: string
-  sender: "admin" | "customer"
-  senderName?: string
-  imageUrl?: string
-}
+import { MessageList } from "./message-components"
+import { MessageInput } from "./message-input"
+import { useRealtimeTicketMessages } from "@/hooks/use-realtime-ticket-messages"
+import type { TicketMessageWithSender } from "@/lib/api/tickets"
 
 interface ChatModalProps {
   isOpen: boolean
   onClose: () => void
+  ticketId: string
   ticketNumber: string
   service: string
   customerName: string
   customerContact: string
   status: string
   onStatusChange: (status: string) => void
-  messages: Message[]
-  onSendMessage: (message: string, imageUrl?: string) => void
+  currentUserId: string
 }
 
 export function ChatModal({
   isOpen,
   onClose,
+  ticketId,
   ticketNumber,
   service,
   customerName,
   customerContact,
   status,
   onStatusChange,
-  messages,
-  onSendMessage,
+  currentUserId,
 }: ChatModalProps) {
-  const [input, setInput] = React.useState("")
-  const [selectedImage, setSelectedImage] = React.useState<string | null>(null)
-  const inputLength = input.trim().length
-  const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const { messages, isLoading, error, sendMessage, markAsRead } = useRealtimeTicketMessages({
+    ticketId,
+    currentUserId
+  })
 
-  const handleSubmit = (event: React.FormEvent) => {
-    event.preventDefault()
-    if (inputLength === 0 && !selectedImage) return
-    
-    if (selectedImage) {
-      // Send image as separate message
-      onSendMessage("", selectedImage)
-      setSelectedImage(null)
-    } else {
-      // Send text message
-      onSendMessage(input.trim())
-      setInput("")
+  // Mark messages as read when modal opens
+  React.useEffect(() => {
+    if (isOpen) {
+      markAsRead()
     }
-  }
+  }, [isOpen, markAsRead])
 
-  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        setSelectedImage(e.target?.result as string)
-      }
-      reader.readAsDataURL(file)
-    }
-  }
-
-  const handleImageButtonClick = () => {
-    fileInputRef.current?.click()
-  }
-
-  const getSenderInitials = (sender: string, senderName?: string) => {
-    switch (sender) {
-      case "admin":
-        return "A"
-      case "customer":
-        return senderName?.[0] || "C"
-      default:
-        return "?"
-    }
-  }
-
-  const getSenderName = (sender: string, senderName?: string) => {
-    switch (sender) {
-      case "admin":
-        return "Admin"
-      case "customer":
-        return senderName || "Customer"
-      default:
-        return "Unknown"
+  const handleSendMessage = async (messageText: string, messageType?: "text" | "image" | "document", attachmentUrl?: string) => {
+    try {
+      await sendMessage(messageText, messageType, attachmentUrl)
+    } catch (error) {
+      console.error("Failed to send message:", error)
     }
   }
 
@@ -157,86 +114,31 @@ export function ChatModal({
             </div>
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto">
-            <div className="space-y-4">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={cn(
-                    "flex w-max max-w-[75%] flex-col gap-2 rounded-lg px-3 py-2 text-sm",
-                    message.sender === "admin"
-                      ? "ml-auto bg-primary text-primary-foreground"
-                      : "bg-muted"
-                  )}
-                >
-                  {message.imageUrl ? (
-                    <div>
-                      <img
-                        src={message.imageUrl}
-                        alt="Shared image"
-                        className="max-w-xs rounded-lg border"
-                      />
-                    </div>
-                  ) : (
-                    <div>{message.text}</div>
-                  )}
-                  <div className="text-xs opacity-70">
-                    {message.timestamp}
-                  </div>
+            {isLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : error ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <p className="text-destructive mb-2">Failed to load messages</p>
+                  <p className="text-sm text-muted-foreground">{error}</p>
                 </div>
-              ))}
-            </div>
+              </div>
+            ) : (
+              <MessageList 
+                messages={messages} 
+                currentUserId={currentUserId}
+                className="p-4"
+              />
+            )}
           </CardContent>
           <CardFooter>
-            <form
-              onSubmit={handleSubmit}
-              className="flex w-full items-center space-x-2"
-            >
-              <Input
-                id="message"
-                placeholder="Type your message..."
-                className="flex-1"
-                autoComplete="off"
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-              />
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleImageSelect}
-                className="hidden"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={handleImageButtonClick}
-              >
-                <ImageIcon className="h-4 w-4" />
-                <span className="sr-only">Add image</span>
-              </Button>
-              <Button type="submit" size="icon" disabled={inputLength === 0 && !selectedImage}>
-                <Send />
-                <span className="sr-only">Send</span>
-              </Button>
-            </form>
-            {selectedImage && (
-              <div className="mt-2 flex items-center space-x-2">
-                <img
-                  src={selectedImage}
-                  alt="Selected image"
-                  className="h-16 w-16 rounded-lg border object-cover"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedImage(null)}
-                >
-                  Remove
-                </Button>
-              </div>
-            )}
+            <MessageInput 
+              onSendMessage={handleSendMessage}
+              placeholder="Type your message..."
+              className="w-full"
+            />
           </CardFooter>
         </Card>
       </DialogContent>

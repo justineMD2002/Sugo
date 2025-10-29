@@ -117,3 +117,4 @@ export interface Rating {
 export type UserWithRiderProfile = User & { rider_profile?: RiderProfile }
 export type OrderWithDelivery = Order & { delivery?: Delivery }
 export type TicketWithMessages = Ticket & { messages?: TicketMessage[] }
+export type TicketWithCustomer = Ticket & { customer?: User[] }

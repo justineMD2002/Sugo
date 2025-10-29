@@ -11,6 +11,8 @@ interface CustomersProps {
   currentPage: number
   totalPages: number
   pageSize: number
+  onPageChange: (page: number) => void
+  onPageSizeChange: (size: number) => void
 }
 
 export function Customers({ 
@@ -18,7 +20,9 @@ export function Customers({
   totalCount, 
   currentPage, 
   totalPages,
-  pageSize
+  pageSize,
+  onPageChange,
+  onPageSizeChange
 }: CustomersProps) {
   const [selectedCustomer, setSelectedCustomer] = React.useState<Customer | null>(null)
   const [isDetailModalOpen, setIsDetailModalOpen] = React.useState(false)
@@ -42,6 +46,8 @@ export function Customers({
         currentPage={currentPage}
         totalPages={totalPages}
         pageSize={pageSize}
+        onPageChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
       />
       
       <CustomerDetailModal

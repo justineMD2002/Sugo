@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/client"
 
 export interface Application {
   id: string
@@ -8,14 +8,14 @@ export interface Application {
   vehicle: string
   plateNumber: string
   appliedDate: string
-  status: "pending" | "under_review" | "approved" | "rejected"
+  status: "pending" | "approved" | "rejected"
   email: string
   serviceType: string
 }
 
 export interface ApplicationsFilters {
   search?: string
-  status?: "pending" | "under_review" | "approved" | "rejected"
+  status?: "pending" | "approved" | "rejected"
   sortBy?: string
   sortOrder?: "asc" | "desc"
 }
@@ -33,17 +33,17 @@ export async function getApplicationsWithDetails(
   limit: number = 10,
   filters: ApplicationsFilters = {}
 ): Promise<ApplicationsResponse> {
-  const supabase = await createClient()
+  const supabase = createClient()
   const offset = (page - 1) * limit
 
-  // First, get all applications (rider_profiles with is_verified = false)
+  // First, get all applications (rider_profiles with status = 'pending')
   let applicationsQuery = supabase
     .from("rider_profiles")
     .select(`
       *,
       user:users!rider_profiles_user_id_fkey(*)
     `, { count: "exact" })
-    .eq("is_verified", false)
+    .eq("status", "pending")
 
   // Apply search filter
   if (filters.search) {
@@ -53,16 +53,16 @@ export async function getApplicationsWithDetails(
     )
   }
 
-  // Apply status filter
-  if (filters.status) {
-    // Map application status to database status
-    const statusMap = {
-      pending: "pending",
-      under_review: "under_review", 
-      approved: "approved",
-      rejected: "rejected"
+  // Apply status filter (only pending applications are shown)
+  if (filters.status && filters.status !== "pending") {
+    // If filtering for non-pending status, return empty results
+    return {
+      data: [],
+      count: 0,
+      page,
+      limit,
+      totalPages: 0
     }
-    applicationsQuery = applicationsQuery.eq("status", statusMap[filters.status])
   }
 
   // Apply sorting
@@ -104,7 +104,7 @@ export async function getApplicationsWithDetails(
       vehicle: vehicleName,
       plateNumber: app.plate_number || "N/A",
       appliedDate: app.created_at,
-      status: app.status as "pending" | "under_review" | "approved" | "rejected",
+      status: "pending",
       email: user?.email || "N/A",
       serviceType: app.service_type
     }
@@ -122,7 +122,7 @@ export async function getApplicationsWithDetails(
 }
 
 export async function getApplicationById(id: string): Promise<Application | null> {
-  const supabase = await createClient()
+  const supabase = createClient()
   
   // Get application data
   const { data: application, error: applicationError } = await supabase
@@ -132,7 +132,7 @@ export async function getApplicationById(id: string): Promise<Application | null
       user:users!rider_profiles_user_id_fkey(*)
     `)
     .eq("id", id)
-    .eq("is_verified", false)
+    .eq("status", "pending")
     .single()
 
   if (applicationError || !application) {
@@ -152,7 +152,7 @@ export async function getApplicationById(id: string): Promise<Application | null
     vehicle: vehicleName,
     plateNumber: application.plate_number || "N/A",
     appliedDate: application.created_at,
-    status: application.status as "pending" | "under_review" | "approved" | "rejected",
+    status: "pending",
     email: user?.email || "N/A",
     serviceType: application.service_type
   }
@@ -160,15 +160,14 @@ export async function getApplicationById(id: string): Promise<Application | null
 
 export async function updateApplicationStatus(
   id: string, 
-  status: "pending" | "under_review" | "approved" | "rejected"
+  status: "pending" | "approved" | "rejected"
 ): Promise<void> {
-  const supabase = await createClient()
+  const supabase = createClient()
   
   const { error } = await supabase
     .from("rider_profiles")
     .update({ 
       status,
-      is_verified: status === "approved",
       updated_at: new Date().toISOString()
     })
     .eq("id", id)
@@ -181,42 +180,21 @@ export async function updateApplicationStatus(
 export async function getApplicationStats(): Promise<{
   totalApplications: number
   pendingApplications: number
-  underReviewApplications: number
-  approvedApplications: number
-  rejectedApplications: number
 }> {
-  const supabase = await createClient()
+  const supabase = createClient()
   
-  // Get total applications count
+  // Get total applications count (only pending)
   const { count: totalApplications, error: applicationsError } = await supabase
     .from("rider_profiles")
     .select("*", { count: "exact", head: true })
-    .eq("is_verified", false)
+    .eq("status", "pending")
 
   if (applicationsError) {
     throw new Error(`Failed to fetch applications count: ${applicationsError.message}`)
   }
 
-  // Get status counts
-  const { data: statusData, error: statusError } = await supabase
-    .from("rider_profiles")
-    .select("status")
-    .eq("is_verified", false)
-
-  if (statusError) {
-    throw new Error(`Failed to fetch application status: ${statusError.message}`)
-  }
-
-  const statusCounts = statusData?.reduce((acc, app) => {
-    acc[app.status] = (acc[app.status] || 0) + 1
-    return acc
-  }, {} as Record<string, number>) || {}
-
   return {
     totalApplications: totalApplications || 0,
-    pendingApplications: statusCounts.pending || 0,
-    underReviewApplications: statusCounts.under_review || 0,
-    approvedApplications: statusCounts.approved || 0,
-    rejectedApplications: statusCounts.rejected || 0
+    pendingApplications: totalApplications || 0
   }
 }

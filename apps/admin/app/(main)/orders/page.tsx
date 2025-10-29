@@ -1,33 +1,56 @@
-import { getOrdersWithDetails } from "@/lib/api/orders"
+"use client"
+
+import { useEffect, useState } from "react"
 import { Orders } from "@/components/orders/orders"
+import { getOrdersWithDetails } from "@/lib/api/orders"
+import { OrdersSkeleton } from "@/components/skeletons/orders-skeleton"
+import type { Order } from "@/lib/api/orders"
 
-interface OrdersPageProps {
-  searchParams: {
-    page?: string
-    limit?: string
+export default function OrdersPage() {
+  const [orders, setOrders] = useState<Order[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  
+  const [pageSize, setPageSize] = useState(10)
+
+  const fetchOrders = async (page: number = currentPage, size: number = pageSize) => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      const { data, count, totalPages } = await getOrdersWithDetails(page, size)
+      setOrders(data)
+      setTotalCount(count)
+      setTotalPages(totalPages)
+      setCurrentPage(page)
+      setPageSize(size)
+    } catch (err) {
+      console.error("Failed to fetch orders:", err)
+      setError("Failed to load orders. Please try again later.")
+    } finally {
+      setIsLoading(false)
+    }
   }
-}
 
-export default async function OrdersPage({ searchParams }: OrdersPageProps) {
-  try {
-    const page = parseInt(searchParams.page || "1", 10)
-    const limit = parseInt(searchParams.limit || "10", 10)
-    
-    const { data: orders, count, totalPages } = await getOrdersWithDetails(page, limit)
-    
+  const handlePageSizeChange = (newSize: number) => {
+    fetchOrders(1, newSize)
+  }
+
+  useEffect(() => {
+    fetchOrders()
+  }, [])
+
+  if (isLoading) {
     return (
       <div className="w-full px-4 lg:px-6 py-4 md:py-6">
-        <Orders 
-          initialOrders={orders} 
-          totalCount={count}
-          currentPage={page}
-          totalPages={totalPages}
-          pageSize={limit}
-        />
+        <OrdersSkeleton />
       </div>
     )
-  } catch (error) {
-    console.error("Failed to fetch orders:", error)
+  }
+
+  if (error) {
     return (
       <div className="w-full px-4 lg:px-6 py-4 md:py-6">
         <div className="text-center py-8">
@@ -41,4 +64,18 @@ export default async function OrdersPage({ searchParams }: OrdersPageProps) {
       </div>
     )
   }
+    
+  return (
+    <div className="w-full px-4 lg:px-6 py-4 md:py-6">
+      <Orders 
+        initialOrders={orders} 
+        totalCount={totalCount}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        onPageChange={fetchOrders}
+        onPageSizeChange={handlePageSizeChange}
+      />
+    </div>
+  )
 }

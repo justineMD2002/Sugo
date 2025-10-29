@@ -105,3 +105,27 @@ export interface TicketStats {
   resolved: number
   closed: number
 }
+
+// Ticket Messages API types
+export interface TicketMessageWithSender {
+  id: string
+  ticket_id: string
+  sender_id: string
+  message_text: string
+  message_type: "text" | "image" | "document"
+  attachment_url?: string
+  is_read: boolean
+  created_at: string
+  sender?: {
+    id: string
+    full_name: string
+    user_type: "customer" | "rider" | "admin"
+    avatar_url?: string
+  }
+}
+
+export interface RealtimeMessagePayload {
+  eventType: "INSERT" | "UPDATE" | "DELETE"
+  new?: TicketMessageWithSender
+  old?: TicketMessageWithSender
+}

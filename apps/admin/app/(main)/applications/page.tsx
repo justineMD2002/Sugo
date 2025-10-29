@@ -1,40 +1,56 @@
-import { getApplicationsWithDetails } from "@/lib/api/applications"
+"use client"
+
+import { useEffect, useState } from "react"
 import { Applications } from "@/components/applications/applications"
+import { getApplicationsWithDetails } from "@/lib/api/applications"
+import { ApplicationsSkeleton } from "@/components/skeletons/applications-skeleton"
+import type { Application } from "@/lib/api/applications"
 
-interface ApplicationsPageProps {
-  searchParams: {
-    page?: string
-    limit?: string
-    search?: string
-    status?: string
+export default function ApplicationsPage() {
+  const [applications, setApplications] = useState<Application[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  
+  const [pageSize, setPageSize] = useState(10)
+
+  const fetchApplications = async (page: number = currentPage, size: number = pageSize) => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      const { data, count, totalPages } = await getApplicationsWithDetails(page, size, {})
+      setApplications(data)
+      setTotalCount(count)
+      setTotalPages(totalPages)
+      setCurrentPage(page)
+      setPageSize(size)
+    } catch (err) {
+      console.error("Failed to fetch applications:", err)
+      setError("Failed to load applications. Please try again later.")
+    } finally {
+      setIsLoading(false)
+    }
   }
-}
 
-export default async function ApplicationsPage({ searchParams }: ApplicationsPageProps) {
-  try {
-    const page = parseInt(searchParams.page || "1", 10)
-    const limit = parseInt(searchParams.limit || "10", 10)
-    const search = searchParams.search || ""
-    const status = searchParams.status as "pending" | "under_review" | "approved" | "rejected" | undefined
-    
-    const { data: applications, count, totalPages } = await getApplicationsWithDetails(page, limit, { 
-      search,
-      status 
-    })
-    
+  const handlePageSizeChange = (newSize: number) => {
+    fetchApplications(1, newSize)
+  }
+
+  useEffect(() => {
+    fetchApplications()
+  }, [])
+
+  if (isLoading) {
     return (
       <div className="w-full px-4 lg:px-6 py-4 md:py-6">
-        <Applications 
-          initialApplications={applications} 
-          totalCount={count}
-          currentPage={page}
-          totalPages={totalPages}
-          pageSize={limit}
-        />
+        <ApplicationsSkeleton />
       </div>
     )
-  } catch (error) {
-    console.error("Failed to fetch applications:", error)
+  }
+
+  if (error) {
     return (
       <div className="w-full px-4 lg:px-6 py-4 md:py-6">
         <div className="text-center py-8">
@@ -48,4 +64,18 @@ export default async function ApplicationsPage({ searchParams }: ApplicationsPag
       </div>
     )
   }
+    
+  return (
+    <div className="w-full px-4 lg:px-6 py-4 md:py-6">
+      <Applications 
+        initialApplications={applications} 
+        totalCount={totalCount}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        onPageChange={fetchApplications}
+        onPageSizeChange={handlePageSizeChange}
+      />
+    </div>
+  )
 }

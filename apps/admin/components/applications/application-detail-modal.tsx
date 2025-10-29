@@ -28,7 +28,7 @@ interface Application {
   vehicle: string
   plateNumber: string
   appliedDate: string
-  status: "pending" | "under_review" | "approved" | "rejected"
+  status: "pending" | "approved" | "rejected"
   email: string
 }
 
@@ -61,8 +61,6 @@ export function ApplicationDetailModal({
     switch (status) {
       case "pending":
         return "secondary"
-      case "under_review":
-        return "default"
       case "approved":
         return "default"
       case "rejected":
@@ -76,8 +74,6 @@ export function ApplicationDetailModal({
     switch (status) {
       case "pending":
         return "Pending"
-      case "under_review":
-        return "Under Review"
       case "approved":
         return "Approved"
       case "rejected":

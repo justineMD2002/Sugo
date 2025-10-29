@@ -16,10 +16,8 @@ interface RecentActivityProps {
 const getStatusColor = (status: string) => {
   switch (status) {
     case "In Progress":
-    case "Under Review":
     case "Assigned":
     case "in_progress":
-    case "under_review":
     case "assigned":
       return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"
     case "Delivered":

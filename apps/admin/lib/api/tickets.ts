@@ -1,17 +1,86 @@
-import { createClient } from "@/lib/supabase/server"
-import type { Ticket, TicketMessage, TicketsResponse, TicketsFilters, TicketStats } from "../types"
+import { createClient } from "@/lib/supabase/client"
+
+export interface Ticket {
+  id: string
+  ticket_number: string
+  customer_id: string
+  service_type: "PLUMBING" | "ELECTRICAL" | "AIRCON" | "CARPENTRY" | "DELIVERY" | "OTHER"
+  status: "open" | "in_progress" | "resolved" | "closed"
+  created_at: string
+  updated_at: string
+  customer?: Array<{
+    full_name: string
+    phone_number: string
+    email: string
+  }>
+}
+
+export interface TicketsFilters {
+  search?: string
+  status?: "open" | "in_progress" | "resolved" | "closed"
+  service_type?: "PLUMBING" | "ELECTRICAL" | "AIRCON" | "CARPENTRY" | "DELIVERY" | "OTHER"
+  customer_id?: string
+  date_from?: string
+  date_to?: string
+  sortBy?: string
+  sortOrder?: "asc" | "desc"
+}
+
+export interface TicketsResponse {
+  data: Ticket[]
+  count: number
+  page: number
+  limit: number
+  totalPages: number
+}
+
+export interface TicketStats {
+  total: number
+  open: number
+  in_progress: number
+  resolved: number
+  closed: number
+}
+
+export interface TicketMessage {
+  id: string
+  ticket_id: string
+  sender_id: string
+  message_text: string
+  message_type: "text" | "image" | "document"
+  attachment_url?: string
+  is_read: boolean
+  created_at: string
+}
+
+export interface TicketMessageWithSender extends TicketMessage {
+  sender: {
+    id: string
+    full_name: string
+    email: string
+  }
+}
+
+export interface RealtimeMessagePayload {
+  eventType: "INSERT" | "UPDATE" | "DELETE"
+  newRecord: any
+  oldRecord: any
+}
 
 export async function getTickets(
   page: number = 1,
   limit: number = 10,
   filters: TicketsFilters = {}
 ): Promise<TicketsResponse> {
-  const supabase = await createClient()
+  const supabase = createClient()
   const offset = (page - 1) * limit
 
   let query = supabase
     .from("tickets")
-    .select("*", { count: "exact" })
+    .select(`
+      *,
+      customer:users!tickets_customer_id_fkey(full_name, phone_number, email)
+    `, { count: "exact" })
 
   // Apply filters
   if (filters.status) {
@@ -64,7 +133,7 @@ export async function getTickets(
 }
 
 export async function getTicketById(id: string): Promise<Ticket | null> {
-  const supabase = await createClient()
+  const supabase = createClient()
   
   const { data, error } = await supabase
     .from("tickets")
@@ -86,7 +155,7 @@ export async function updateTicketStatus(
   id: string, 
   status: Ticket["status"]
 ): Promise<Ticket> {
-  const supabase = await createClient()
+  const supabase = createClient()
   
   const { data, error } = await supabase
     .from("tickets")
@@ -106,7 +175,7 @@ export async function updateTicketStatus(
 }
 
 export async function createTicket(ticket: Omit<Ticket, "id" | "created_at" | "updated_at">): Promise<Ticket> {
-  const supabase = await createClient()
+  const supabase = createClient()
   
   const { data, error } = await supabase
     .from("tickets")
@@ -122,7 +191,7 @@ export async function createTicket(ticket: Omit<Ticket, "id" | "created_at" | "u
 }
 
 export async function getTicketMessages(ticket_id: string): Promise<TicketMessage[]> {
-  const supabase = await createClient()
+  const supabase = createClient()
   
   const { data, error } = await supabase
     .from("ticket_messages")
@@ -137,6 +206,30 @@ export async function getTicketMessages(ticket_id: string): Promise<TicketMessag
   return data || []
 }
 
+export async function getTicketMessagesWithSender(ticket_id: string): Promise<TicketMessageWithSender[]> {
+  const supabase = createClient()
+  
+  const { data, error } = await supabase
+    .from("ticket_messages")
+    .select(`
+      *,
+      sender:users!ticket_messages_sender_id_fkey(
+        id,
+        full_name,
+        user_type,
+        avatar_url
+      )
+    `)
+    .eq("ticket_id", ticket_id)
+    .order("created_at", { ascending: true })
+
+  if (error) {
+    throw new Error(`Failed to fetch ticket messages with sender: ${error.message}`)
+  }
+
+  return data || []
+}
+
 export async function addTicketMessage(
   ticket_id: string,
   sender_id: string,
@@ -144,7 +237,7 @@ export async function addTicketMessage(
   message_type: TicketMessage["message_type"] = "text",
   attachment_url?: string
 ): Promise<TicketMessage> {
-  const supabase = await createClient()
+  const supabase = createClient()
   
   const { data, error } = await supabase
     .from("ticket_messages")
@@ -165,8 +258,22 @@ export async function addTicketMessage(
   return data
 }
 
+export async function markTicketMessagesAsRead(ticket_id: string, sender_id: string): Promise<void> {
+  const supabase = createClient()
+  
+  const { error } = await supabase
+    .from("ticket_messages")
+    .update({ is_read: true })
+    .eq("ticket_id", ticket_id)
+    .neq("sender_id", sender_id) // Don't mark own messages as read
+
+  if (error) {
+    throw new Error(`Failed to mark messages as read: ${error.message}`)
+  }
+}
+
 export async function getTicketStats(): Promise<TicketStats> {
-  const supabase = await createClient()
+  const supabase = createClient()
   
   const { data, error } = await supabase
     .from("tickets")

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/client"
 import type { Order, Delivery, OrdersResponse, OrdersFilters, OrderStats, User } from "../types"
 
 export async function getOrders(
@@ -6,7 +6,7 @@ export async function getOrders(
   limit: number = 10,
   filters: OrdersFilters = {}
 ): Promise<OrdersResponse> {
-  const supabase = await createClient()
+  const supabase = createClient()
   const offset = (page - 1) * limit
 
   let query = supabase
@@ -64,7 +64,7 @@ export async function getOrders(
 }
 
 export async function getOrderById(id: string): Promise<Order | null> {
-  const supabase = await createClient()
+  const supabase = createClient()
   
   const { data, error } = await supabase
     .from("orders")
@@ -86,7 +86,7 @@ export async function updateOrderStatus(
   id: string, 
   status: Order["status"]
 ): Promise<Order> {
-  const supabase = await createClient()
+  const supabase = createClient()
   
   const { data, error } = await supabase
     .from("orders")
@@ -106,7 +106,7 @@ export async function updateOrderStatus(
 }
 
 export async function createOrder(order: Omit<Order, "id" | "created_at" | "updated_at">): Promise<Order> {
-  const supabase = await createClient()
+  const supabase = createClient()
   
   const { data, error } = await supabase
     .from("orders")
@@ -132,7 +132,7 @@ export async function getDeliveriesByRider(rider_id: string, page: number = 1, l
   limit: number
   totalPages: number
 }> {
-  const supabase = await createClient()
+  const supabase = createClient()
   const offset = (page - 1) * limit
 
   const { data, error, count } = await supabase
@@ -172,7 +172,7 @@ export async function getOrdersWithDetails(
   limit: number
   totalPages: number
 }> {
-  const supabase = await createClient()
+  const supabase = createClient()
   const offset = (page - 1) * limit
 
   // First, get the orders
@@ -305,7 +305,7 @@ export async function getOrdersWithDetails(
 }
 
 export async function getOrderStats(): Promise<OrderStats> {
-  const supabase = await createClient()
+  const supabase = createClient()
   
   const { data, error } = await supabase
     .from("orders")

@@ -17,6 +17,8 @@ interface OrdersProps {
   currentPage: number
   totalPages: number
   pageSize: number
+  onPageChange: (page: number) => void
+  onPageSizeChange: (size: number) => void
 }
 
 export function Orders({ 
@@ -24,7 +26,9 @@ export function Orders({
   totalCount, 
   currentPage, 
   totalPages,
-  pageSize
+  pageSize,
+  onPageChange,
+  onPageSizeChange
 }: OrdersProps) {
   const [selectedOrder, setSelectedOrder] = React.useState<OrderWithDetails | null>(null)
   const [isDetailModalOpen, setIsDetailModalOpen] = React.useState(false)
@@ -48,6 +52,8 @@ export function Orders({
         currentPage={currentPage}
         totalPages={totalPages}
         pageSize={pageSize}
+        onPageChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
       />
       
       <OrderDetailModal

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/client"
 
 export interface Customer {
   id: string
@@ -28,7 +28,7 @@ export async function getCustomersWithDetails(
   limit: number = 10,
   filters: CustomersFilters = {}
 ): Promise<CustomersResponse> {
-  const supabase = await createClient()
+  const supabase = createClient()
   const offset = (page - 1) * limit
 
   // First, get all customers (users with user_types = 'customer')
@@ -131,7 +131,7 @@ export async function getCustomersWithDetails(
 }
 
 export async function getCustomerById(id: string): Promise<Customer | null> {
-  const supabase = await createClient()
+  const supabase = createClient()
   
   // Get customer data
   const { data: customer, error: customerError } = await supabase
@@ -183,7 +183,7 @@ export async function getCustomerStats(): Promise<{
   averageOrdersPerCustomer: number
   averageServicesPerCustomer: number
 }> {
-  const supabase = await createClient()
+  const supabase = createClient()
   
   // Get total customers count
   const { count: totalCustomers, error: customersError } = await supabase

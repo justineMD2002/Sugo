@@ -13,6 +13,8 @@ interface ApplicationsProps {
   currentPage: number
   totalPages: number
   pageSize: number
+  onPageChange: (page: number) => void
+  onPageSizeChange: (size: number) => void
 }
 
 export function Applications({ 
@@ -20,7 +22,9 @@ export function Applications({
   totalCount, 
   currentPage, 
   totalPages,
-  pageSize
+  pageSize,
+  onPageChange,
+  onPageSizeChange
 }: ApplicationsProps) {
   const [selectedApplication, setSelectedApplication] = React.useState<Application | null>(null)
   const [isDetailModalOpen, setIsDetailModalOpen] = React.useState(false)
@@ -87,6 +91,8 @@ export function Applications({
         currentPage={currentPage}
         totalPages={totalPages}
         pageSize={pageSize}
+        onPageChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
       />
       
       <ApplicationDetailModal

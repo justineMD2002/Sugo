@@ -11,6 +11,8 @@ interface RidersProps {
   currentPage: number
   totalPages: number
   pageSize: number
+  onPageChange: (page: number) => void
+  onPageSizeChange: (size: number) => void
 }
 
 export function Riders({ 
@@ -18,7 +20,9 @@ export function Riders({
   totalCount, 
   currentPage, 
   totalPages,
-  pageSize
+  pageSize,
+  onPageChange,
+  onPageSizeChange
 }: RidersProps) {
   const [selectedRider, setSelectedRider] = React.useState<Rider | null>(null)
   const [isDetailModalOpen, setIsDetailModalOpen] = React.useState(false)
@@ -47,6 +51,8 @@ export function Riders({
         currentPage={currentPage}
         totalPages={totalPages}
         pageSize={pageSize}
+        onPageChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
       />
       
       <RiderDetailModal

@@ -13,14 +13,19 @@ import {
   useReactTable,
   VisibilityState,
 } from "@tanstack/react-table"
-import { ArrowUpDown, ChevronDown, Check, X, Eye } from "lucide-react"
+import { ArrowUpDown, ChevronDown, MoreHorizontal, Copy, Eye, MessageCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { useCurrentUser } from "@/hooks/use-current-user"
+import { updateTicketStatus } from "@/lib/api/tickets"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
@@ -50,96 +55,60 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { Application } from "@/lib/api/applications"
+import { ChatModal } from "@/components/tickets/chat-modal"
+import type { Ticket } from "@/lib/api/tickets"
 
-interface ApplicationsTableProps {
-  data: Application[]
-  onViewApplication: (application: Application) => void
-  onApproveApplication: (application: Application) => void
-  onRejectApplication: (application: Application) => void
+interface TicketsProps {
+  initialTickets: Ticket[]
   totalCount: number
   currentPage: number
   totalPages: number
-  pageSize?: number
+  pageSize: number
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
 }
 
-const createColumns = (
-  onView: (application: Application) => void,
-  onApprove: (application: Application) => void,
-  onReject: (application: Application) => void
-): ColumnDef<Application>[] => [
+const createColumns = (onOpenChat: (ticketId: string, ticketNumber: string, service: string, status: string) => void): ColumnDef<Ticket>[] => [
   {
-    accessorKey: "applicant",
-    header: "Applicant",
-    cell: ({ row }) => {
-      const applicant = row.original
-      return (
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
-            {applicant.applicant.split(' ').map(n => n[0]).join('')}
-          </div>
-          <div>
-            <div className="font-medium text-sm">{applicant.applicant}</div>
-            <div className="text-xs text-muted-foreground">{applicant.id}</div>
-          </div>
-        </div>
-      )
-    },
-    size: 200,
-  },
-  {
-    accessorKey: "contact",
-    header: "Contact",
-    cell: ({ row }) => {
-      const applicant = row.original
-      return (
-        <div>
-          <div className="text-sm font-medium">{applicant.contact}</div>
-          <div className="text-xs text-muted-foreground">{applicant.email}</div>
-        </div>
-      )
-    },
-    size: 180,
-  },
-  {
-    accessorKey: "address",
-    header: "Address",
+    accessorKey: "ticket_number",
+    header: "Ticket",
     cell: ({ row }) => (
-      <div className="text-sm text-muted-foreground max-w-xs truncate" title={row.getValue("address")}>
-        {row.getValue("address")}
-      </div>
+      <div className="font-mono text-sm">{row.getValue("ticket_number")}</div>
     ),
-    size: 200,
   },
   {
-    accessorKey: "vehicle",
-    header: "Vehicle",
+    accessorKey: "customer",
+    header: "Customer",
     cell: ({ row }) => {
-      const applicant = row.original
+      const customer = row.original.customer?.[0]
       return (
         <div>
-          <div className="text-sm font-medium">{applicant.vehicle}</div>
-          <div className="text-xs text-muted-foreground">{applicant.plateNumber}</div>
+          <div className="text-sm font-medium">{customer?.full_name || "Unknown Customer"}</div>
+          <div className="text-xs text-gray-500">{customer?.phone_number || "N/A"}</div>
         </div>
       )
     },
-    size: 150,
   },
   {
-    accessorKey: "appliedDate",
-    header: "Applied Date",
+    accessorKey: "service_type",
+    header: "Service",
     cell: ({ row }) => {
-      const date = new Date(row.getValue("appliedDate"))
-      const formatted = date.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      })
-      return <div className="text-sm">{formatted}</div>
+      const service = row.getValue("service_type") as string
+      const serviceConfig = {
+        PLUMBING: { label: "Plumbing", className: "text-blue-600 bg-blue-50" },
+        ELECTRICAL: { label: "Electrical", className: "text-yellow-600 bg-yellow-50" },
+        AIRCON: { label: "Aircon", className: "text-cyan-600 bg-cyan-50" },
+        CARPENTRY: { label: "Carpentry", className: "text-green-600 bg-green-50" },
+        DELIVERY: { label: "Delivery", className: "text-purple-600 bg-purple-50" },
+        OTHER: { label: "Other", className: "text-gray-600 bg-gray-50" },
+      }[service] || { label: service, className: "text-gray-600 bg-gray-50" }
+
+      return (
+        <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${serviceConfig.className}`}>
+          {serviceConfig.label}
+        </div>
+      )
     },
-    size: 120,
   },
   {
     accessorKey: "status",
@@ -147,9 +116,10 @@ const createColumns = (
     cell: ({ row }) => {
       const status = row.getValue("status") as string
       const statusConfig = {
-        pending: { label: "Pending", className: "text-yellow-600 bg-yellow-50" },
-        approved: { label: "Approved", className: "text-green-600 bg-green-50" },
-        rejected: { label: "Rejected", className: "text-red-600 bg-red-50" },
+        open: { label: "Open", className: "text-red-600 bg-red-50" },
+        in_progress: { label: "In Progress", className: "text-blue-600 bg-blue-50" },
+        resolved: { label: "Resolved", className: "text-green-600 bg-green-50" },
+        closed: { label: "Closed", className: "text-gray-600 bg-gray-50" },
       }[status] || { label: status, className: "text-gray-600 bg-gray-50" }
 
       return (
@@ -160,73 +130,146 @@ const createColumns = (
     },
   },
   {
+    accessorKey: "created_at",
+    header: "Created",
+    cell: ({ row }) => {
+      const time = new Date(row.getValue("created_at"))
+      const formatted = time.toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+      return <div className="text-sm">{formatted}</div>
+    },
+  },
+  {
     id: "actions",
     header: () => <div className="text-center">Actions</div>,
     enableHiding: false,
     cell: ({ row }) => {
-      const application = row.original
+      const ticket = row.original
 
-      const handleApprove = () => {
-        onApprove(application)
+      const handleChatClick = () => {
+        onOpenChat(ticket.id, ticket.ticket_number, ticket.service_type, ticket.status)
       }
 
-      const handleReject = () => {
-        onReject(application)
+      const handleCopy = () => {
+        navigator.clipboard.writeText(ticket.ticket_number)
+        // You could add a toast notification here
       }
 
-      const isProcessed = application.status === "approved" || application.status === "rejected"
-      
       return (
-        <div className="flex items-center justify-center space-x-2">
-          {!isProcessed && (
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleApprove}
-                className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
-                title="Approve application"
-              >
-                <Check className="h-4 w-4" />
+        <div className="flex justify-center">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-8 w-8 p-0">
+                <span className="sr-only">Open menu</span>
+                <MoreHorizontal className="h-4 w-4" />
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleReject}
-                className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                title="Reject application"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </>
-          )}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuItem onClick={handleCopy}>
+                <Copy className="mr-2 h-4 w-4" />
+                Copy ticket number
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleChatClick}>
+                <MessageCircle className="mr-2 h-4 w-4" />
+                Open chat
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )
     },
   },
 ]
 
-export function ApplicationsTable({
-  data,
-  onViewApplication,
-  onApproveApplication,
-  onRejectApplication,
-  totalCount,
-  currentPage,
+export function Tickets({ 
+  initialTickets, 
+  totalCount, 
+  currentPage, 
   totalPages,
-  pageSize = 10,
+  pageSize,
   onPageChange,
   onPageSizeChange
-}: ApplicationsTableProps) {
+}: TicketsProps) {
+  const { user, isLoading: userLoading } = useCurrentUser()
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = React.useState({})
+  const [chatModal, setChatModal] = React.useState<{
+    isOpen: boolean
+    ticketId: string
+    ticketNumber: string
+    service: string
+    customerName: string
+    customerContact: string
+    status: string
+  }>({
+    isOpen: false,
+    ticketId: "",
+    ticketNumber: "",
+    service: "",
+    customerName: "",
+    customerContact: "",
+    status: "",
+  })
 
-  const columns = createColumns(onViewApplication, onApproveApplication, onRejectApplication)
+  const handleOpenChat = (ticketId: string, ticketNumber: string, service: string, status: string) => {
+    // Find the ticket to get customer data
+    const ticket = initialTickets.find(t => t.id === ticketId)
+    const customer = ticket?.customer?.[0]
+    
+    setChatModal({
+      isOpen: true,
+      ticketId,
+      ticketNumber,
+      service,
+      customerName: customer?.full_name || "Unknown Customer",
+      customerContact: customer?.phone_number || "N/A",
+      status,
+    })
+  }
+
+  const handleViewTicket = (ticket: Ticket) => {
+    console.log("Viewing ticket:", ticket.ticket_number)
+    // Add your view logic here - could open a modal or navigate to details page
+  }
+
+  const handleCloseChat = () => {
+    setChatModal({
+      isOpen: false,
+      ticketId: "",
+      ticketNumber: "",
+      service: "",
+      customerName: "",
+      customerContact: "",
+      status: "",
+    })
+  }
+
+  const handleStatusChange = async (newStatus: string) => {
+    try {
+      await updateTicketStatus(chatModal.ticketId, newStatus as any)
+      setChatModal((prev) => ({
+        ...prev,
+        status: newStatus,
+      }))
+      // You could add a toast notification here for success
+    } catch (error) {
+      console.error("Failed to update ticket status:", error)
+      // You could add a toast notification here for error
+    }
+  }
+
+  const columns = createColumns(handleOpenChat)
 
   const table = useReactTable({
-    data,
+    data: initialTickets,
     columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
@@ -245,20 +288,20 @@ export function ApplicationsTable({
   })
 
   return (
-    <div className="w-full">
+    <>
       <div className="flex items-center space-x-4 mb-4">
         <Input
-          placeholder="Filter by applicant name..."
-          value={(table.getColumn("applicant")?.getFilterValue() as string) ?? ""}
+          placeholder="Filter tickets..."
+          value={(table.getColumn("ticket_number")?.getFilterValue() as string) ?? ""}
           onChange={(event) =>
-            table.getColumn("applicant")?.setFilterValue(event.target.value)
+            table.getColumn("ticket_number")?.setFilterValue(event.target.value)
           }
           className="max-w-sm"
         />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="ml-auto">
-              Columns <ChevronDown />
+              Columns <ChevronDown className="ml-2 h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -309,7 +352,7 @@ export function ApplicationsTable({
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
                   className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => onViewApplication(row.original)}
+                  onClick={() => handleViewTicket(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
@@ -327,13 +370,14 @@ export function ApplicationsTable({
                   colSpan={columns.length}
                   className="h-24 text-center"
                 >
-                  No results.
+                  No tickets found.
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
+      
       <div className="flex items-center justify-between px-4 py-4">
         <div className="text-muted-foreground text-sm">
           {table.getFilteredSelectedRowModel().rows.length} of{" "}
@@ -399,6 +443,19 @@ export function ApplicationsTable({
           </div>
         </div>
       </div>
-    </div>
+      
+      <ChatModal
+        isOpen={chatModal.isOpen}
+        onClose={handleCloseChat}
+        ticketId={chatModal.ticketId}
+        ticketNumber={chatModal.ticketNumber}
+        service={chatModal.service}
+        customerName={chatModal.customerName}
+        customerContact={chatModal.customerContact}
+        status={chatModal.status}
+        onStatusChange={handleStatusChange}
+        currentUserId={user?.id || ""}
+      />
+    </>
   )
 }

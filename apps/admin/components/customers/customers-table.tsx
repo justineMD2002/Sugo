@@ -40,6 +40,8 @@ import {
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
+  PaginationFirst,
+  PaginationLast,
 } from "@/components/ui/pagination"
 import {
   Select,
@@ -57,6 +59,8 @@ interface CustomersTableProps {
   currentPage: number
   totalPages: number
   pageSize?: number
+  onPageChange: (page: number) => void
+  onPageSizeChange: (size: number) => void
 }
 
 const createColumns = (
@@ -111,32 +115,6 @@ const createColumns = (
     ),
     size: 100,
   },
-  {
-    id: "actions",
-    header: () => <div className="text-center">Actions</div>,
-    enableHiding: false,
-    cell: ({ row }) => {
-      const customer = row.original
-
-      const handleView = () => {
-        onView(customer)
-      }
-
-      return (
-        <div className="flex items-center justify-center">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleView}
-            className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-            title="View customer details"
-          >
-            <Eye className="h-4 w-4" />
-          </Button>
-        </div>
-      )
-    },
-  },
 ]
 
 export function CustomersTable({ 
@@ -144,8 +122,10 @@ export function CustomersTable({
     onViewCustomer, 
     totalCount, 
     currentPage, 
-    totalPages, 
-    pageSize = 10 
+    totalPages,
+    pageSize = 10,
+    onPageChange,
+    onPageSizeChange
 }: CustomersTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -237,6 +217,8 @@ export function CustomersTable({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => onViewCustomer(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
@@ -261,17 +243,18 @@ export function CustomersTable({
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-between space-x-2 py-4">
-        <div className="flex items-center space-x-4">
-          <div className="text-muted-foreground text-sm">
-            Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalCount)} of {totalCount} results
-          </div>
-          <div className="flex items-center space-x-2">
+      <div className="flex items-center justify-between px-4 py-4">
+        <div className="text-muted-foreground text-sm">
+          {table.getFilteredSelectedRowModel().rows.length} of{" "}
+          {table.getFilteredRowModel().rows.length} row(s) selected.
+        </div>
+        <div className="flex items-center gap-8">
+          <div className="flex items-center gap-2">
             <p className="text-sm font-medium">Rows per page</p>
             <Select
               value={pageSize.toString()}
               onValueChange={(value) => {
-                window.location.href = `/customers?page=1&limit=${value}`
+                onPageSizeChange(parseInt(value))
               }}
             >
               <SelectTrigger className="h-8 w-[70px]">
@@ -286,55 +269,44 @@ export function CustomersTable({
               </SelectContent>
             </Select>
           </div>
-        </div>
-        <Pagination>
-          <PaginationContent>
-            <PaginationItem>
-              <PaginationPrevious 
-                href={`/customers?page=${currentPage - 1}&limit=${pageSize}`}
-                className={currentPage <= 1 ? "pointer-events-none opacity-50" : ""}
-              />
-            </PaginationItem>
-            
-            {/* Generate page numbers */}
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              let pageNumber
-              if (totalPages <= 5) {
-                pageNumber = i + 1
-              } else if (currentPage <= 3) {
-                pageNumber = i + 1
-              } else if (currentPage >= totalPages - 2) {
-                pageNumber = totalPages - 4 + i
-              } else {
-                pageNumber = currentPage - 2 + i
-              }
-              
-              return (
-                <PaginationItem key={pageNumber}>
-                  <PaginationLink
-                    href={`/customers?page=${pageNumber}&limit=${pageSize}`}
-                    isActive={currentPage === pageNumber}
-                  >
-                    {pageNumber}
-                  </PaginationLink>
+          <div className="text-sm font-medium">
+            Page {currentPage} of {totalPages}
+          </div>
+          <div className="flex items-center gap-2">
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationFirst 
+                    onClick={() => onPageChange(1)}
+                    className={currentPage <= 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    size="sm"
+                  />
                 </PaginationItem>
-              )
-            })}
-            
-            {totalPages > 5 && currentPage < totalPages - 2 && (
-              <PaginationItem>
-                <PaginationEllipsis />
-              </PaginationItem>
-            )}
-            
-            <PaginationItem>
-              <PaginationNext 
-                href={`/customers?page=${currentPage + 1}&limit=${pageSize}`}
-                className={currentPage >= totalPages ? "pointer-events-none opacity-50" : ""}
-              />
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
+                <PaginationItem>
+                  <PaginationPrevious 
+                    onClick={() => currentPage > 1 && onPageChange(currentPage - 1)}
+                    className={currentPage <= 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    size="sm"
+                  />
+                </PaginationItem>
+                <PaginationItem>
+                  <PaginationNext 
+                    onClick={() => currentPage < totalPages && onPageChange(currentPage + 1)}
+                    className={currentPage >= totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    size="sm"
+                  />
+                </PaginationItem>
+                <PaginationItem>
+                  <PaginationLast 
+                    onClick={() => onPageChange(totalPages)}
+                    className={currentPage >= totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    size="sm"
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
+        </div>
       </div>
     </div>
   )

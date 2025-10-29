@@ -1,35 +1,56 @@
-import { getCustomersWithDetails } from "@/lib/api/customers"
+"use client"
+
+import { useEffect, useState } from "react"
 import { Customers } from "@/components/customers/customers"
+import { getCustomersWithDetails } from "@/lib/api/customers"
+import { CustomersSkeleton } from "@/components/skeletons/customers-skeleton"
+import type { Customer } from "@/lib/api/customers"
 
-interface CustomersPageProps {
-  searchParams: {
-    page?: string
-    limit?: string
-    search?: string
+export default function CustomersPage() {
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  
+  const [pageSize, setPageSize] = useState(10)
+
+  const fetchCustomers = async (page: number = currentPage, size: number = pageSize) => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      const { data, count, totalPages } = await getCustomersWithDetails(page, size, {})
+      setCustomers(data)
+      setTotalCount(count)
+      setTotalPages(totalPages)
+      setCurrentPage(page)
+      setPageSize(size)
+    } catch (err) {
+      console.error("Failed to fetch customers:", err)
+      setError("Failed to load customers. Please try again later.")
+    } finally {
+      setIsLoading(false)
+    }
   }
-}
 
-export default async function CustomersPage({ searchParams }: CustomersPageProps) {
-  try {
-    const page = parseInt(searchParams.page || "1", 10)
-    const limit = parseInt(searchParams.limit || "10", 10)
-    const search = searchParams.search || ""
-    
-    const { data: customers, count, totalPages } = await getCustomersWithDetails(page, limit, { search })
-    
+  const handlePageSizeChange = (newSize: number) => {
+    fetchCustomers(1, newSize)
+  }
+
+  useEffect(() => {
+    fetchCustomers()
+  }, [])
+
+  if (isLoading) {
     return (
       <div className="w-full px-4 lg:px-6 py-4 md:py-6">
-        <Customers 
-          initialCustomers={customers} 
-          totalCount={count}
-          currentPage={page}
-          totalPages={totalPages}
-          pageSize={limit}
-        />
+        <CustomersSkeleton />
       </div>
     )
-  } catch (error) {
-    console.error("Failed to fetch customers:", error)
+  }
+
+  if (error) {
     return (
       <div className="w-full px-4 lg:px-6 py-4 md:py-6">
         <div className="text-center py-8">
@@ -43,4 +64,18 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
       </div>
     )
   }
+    
+  return (
+    <div className="w-full px-4 lg:px-6 py-4 md:py-6">
+      <Customers 
+        initialCustomers={customers} 
+        totalCount={totalCount}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        onPageChange={fetchCustomers}
+        onPageSizeChange={handlePageSizeChange}
+      />
+    </div>
+  )
 }

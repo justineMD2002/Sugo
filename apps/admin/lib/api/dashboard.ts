@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/client"
 import { getApplicationStats } from "./applications"
 import { getCustomerStats } from "./customers"
 import { getOrderStats } from "./orders"
@@ -74,7 +74,7 @@ export interface DashboardData {
 }
 
 export async function getDashboardData(): Promise<DashboardData> {
-  const supabase = await createClient()
+  const supabase = createClient()
   
   // Get all stats in parallel
   const [
@@ -86,8 +86,8 @@ export async function getDashboardData(): Promise<DashboardData> {
   ] = await Promise.all([
     getApplicationStats(),
     getCustomerStats(),
-    getRiderStats(),
     getOrderStats(),
+    getRiderStats(),
     getTicketStats()
   ])
 
@@ -144,8 +144,11 @@ export async function getDashboardData(): Promise<DashboardData> {
       order_number,
       total_amount,
       status,
+      service_type,
       created_at,
-      customer:users!orders_customer_id_fkey(full_name, address),
+      pickup_address,
+      delivery_address,
+      customer:users!orders_customer_id_fkey(full_name),
       delivery:deliveries!deliveries_order_id_fkey(
         rider:users!deliveries_rider_id_fkey(full_name)
       )
@@ -157,16 +160,23 @@ export async function getDashboardData(): Promise<DashboardData> {
     throw new Error(`Failed to fetch recent orders: ${recentOrdersError.message}`)
   }
 
-  const recentOrders: RecentOrder[] = recentOrdersData?.map(order => ({
-    id: order.id,
-    order_number: order.order_number,
-    customer_name: order.customer?.full_name || "Unknown Customer",
-    customer_address: order.customer?.address || "N/A",
-    status: order.status,
-    total_amount: order.total_amount,
-    created_at: order.created_at,
-    rider_name: order.delivery?.rider?.full_name
-  })) || []
+  const recentOrders: RecentOrder[] = recentOrdersData?.map(order => {
+    // Choose address based on service type
+    const customer_address = order.service_type === "delivery" 
+      ? order.delivery_address || order.pickup_address || "N/A"
+      : order.pickup_address || order.delivery_address || "N/A"
+    
+    return {
+      id: order.id,
+      order_number: order.order_number,
+      customer_name: order.customer?.[0]?.full_name || "Unknown Customer",
+      customer_address,
+      status: order.status,
+      total_amount: order.total_amount,
+      created_at: order.created_at,
+      rider_name: order.delivery?.[0]?.rider?.[0]?.full_name
+    }
+  }) || []
 
   // Get recent applications (last 3)
   const { data: recentApplicationsData, error: recentApplicationsError } = await supabase
@@ -177,7 +187,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       created_at,
       user:users!rider_profiles_user_id_fkey(full_name, email, phone_number)
     `)
-    .eq("is_verified", false)
+    .eq("status", "pending")
     .order("created_at", { ascending: false })
     .limit(3)
 
@@ -187,9 +197,9 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   const recentApplications: RecentApplication[] = recentApplicationsData?.map(app => ({
     id: app.id,
-    applicant_name: app.user?.full_name || "Unknown Applicant",
-    email: app.user?.email || "N/A",
-    phone_number: app.user?.phone_number || "N/A",
+    applicant_name: app.user?.[0]?.full_name || "Unknown Applicant",
+    email: app.user?.[0]?.email || "N/A",
+    phone_number: app.user?.[0]?.phone_number || "N/A",
     experience: "N/A", // This would need to be calculated or stored separately
     status: app.status,
     applied_at: app.created_at
@@ -202,12 +212,9 @@ export async function getDashboardData(): Promise<DashboardData> {
       id,
       ticket_number,
       service_type,
-      description,
-      priority,
       status,
       created_at,
-      customer:users!tickets_customer_id_fkey(full_name),
-      technician:users!tickets_technician_id_fkey(full_name)
+      customer:users!tickets_customer_id_fkey(full_name)
     `)
     .order("created_at", { ascending: false })
     .limit(4)
@@ -219,13 +226,13 @@ export async function getDashboardData(): Promise<DashboardData> {
   const recentTickets: RecentTicket[] = recentTicketsData?.map(ticket => ({
     id: ticket.id,
     ticket_number: ticket.ticket_number,
-    customer_name: ticket.customer?.full_name || "Unknown Customer",
+    customer_name: ticket.customer?.[0]?.full_name || "Unknown Customer",
     service_type: ticket.service_type,
-    description: ticket.description,
-    priority: ticket.priority,
+    description: "N/A", // Not available in schema
+    priority: "N/A", // Not available in schema
     status: ticket.status,
     created_at: ticket.created_at,
-    technician_name: ticket.technician?.full_name
+    technician_name: undefined // Not available in schema
   })) || []
 
   // Calculate today's stats
@@ -246,7 +253,7 @@ export async function getDashboardData(): Promise<DashboardData> {
   const { count: applicationsToday } = await supabase
     .from("rider_profiles")
     .select("*", { count: "exact", head: true })
-    .eq("is_verified", false)
+    .eq("status", "pending")
     .gte("created_at", today)
 
   const { count: ridersThisWeek } = await supabase
