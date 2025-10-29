@@ -1,3 +1,4 @@
+import AddressAutocomplete from '@/components/sugo/AddressAutocomplete';
 import BottomBar from '@/components/sugo/BottomBar';
 import CallOptionsModal from '@/components/sugo/CallOptionsModal';
 import Chat, { ChatMessage } from '@/components/sugo/Chat';
@@ -2347,14 +2348,14 @@ export default function SugoScreen() {
                     <Text style={styles.primaryText}>Call Customer</Text>
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity
+                {/* <TouchableOpacity
                   style={[styles.primaryBtn, { backgroundColor: '#ef4444' }]}
                   onPress={cancelDelivery}
                   disabled={isLoading}
                 >
                   <Ionicons name="close-circle" size={16} color="#fff" />
                   <Text style={styles.primaryText}>{isLoading ? 'Cancelling...' : 'Cancel Order'}</Text>
-                </TouchableOpacity>
+                </TouchableOpacity> */}
               </View>
             </>
           ) : currentScreen === 'deliveries' ? (
@@ -2627,14 +2628,14 @@ export default function SugoScreen() {
                     <Text style={styles.primaryText}>Call Rider</Text>
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity
+                {/* <TouchableOpacity
                   style={[styles.primaryBtn, { backgroundColor: '#ef4444' }]}
                   onPress={cancelOrder}
                   disabled={isLoading}
                 >
                   <Ionicons name="close-circle" size={16} color="#fff" />
                   <Text style={styles.primaryText}>{isLoading ? 'Cancelling...' : 'Cancel Order'}</Text>
-                </TouchableOpacity>
+                </TouchableOpacity> */}
               </View>
             </>
           ) : currentScreen === 'orders' ? (
@@ -2787,25 +2788,25 @@ export default function SugoScreen() {
               <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
                 {selectedService === 'delivery' && (
                   <SectionCard title="Locations">
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                      <Ionicons name="location" size={20} color="#dc2626" />
-                      <TextInput
-                        placeholder="Pickup Location"
-                        style={[styles.underlinedInput, { flex: 1 }]}
-                        placeholderTextColor="#9ca3af"
-                        value={pickupAddress}
-                        onChangeText={setPickupAddress}
-                      />
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+                      <Ionicons name="location" size={20} color="#dc2626" style={{ marginTop: 18 }} />
+                      <View style={{ flex: 1 }}>
+                        <AddressAutocomplete
+                          placeholder="Pickup Location"
+                          onAddressSelect={(address) => setPickupAddress(address)}
+                          value={pickupAddress}
+                        />
+                      </View>
                     </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                      <Ionicons name="location" size={20} color="#16a34a" />
-                      <TextInput
-                        placeholder="Delivery Location"
-                        style={[styles.underlinedInput, { flex: 1 }]}
-                        placeholderTextColor="#9ca3af"
-                        value={deliveryAddress}
-                        onChangeText={setDeliveryAddress}
-                      />
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 12 }}>
+                      <Ionicons name="location" size={20} color="#16a34a" style={{ marginTop: 18 }} />
+                      <View style={{ flex: 1 }}>
+                        <AddressAutocomplete
+                          placeholder="Delivery Location"
+                          onAddressSelect={(address) => setDeliveryAddress(address)}
+                          value={deliveryAddress}
+                        />
+                      </View>
                     </View>
                   </SectionCard>
                 )}
