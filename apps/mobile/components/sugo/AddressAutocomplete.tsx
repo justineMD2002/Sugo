@@ -16,11 +16,16 @@ interface AddressAutocompleteProps {
   onAddressSelect: (address: string, details?: any) => void;
   value?: string;
   editable?: boolean;
+  zIndex?: number;
+  isOpen?: boolean;
+  onFocus?: () => void;
+  onBlur?: () => void;
 }
 
 interface Prediction {
   description: string;
   place_id: string;
+  placeId?: string; // New API uses placeId instead of place_id
 }
 
 const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
@@ -28,6 +33,10 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   onAddressSelect,
   value = '',
   editable = true,
+  zIndex = 1000,
+  isOpen = false,
+  onFocus,
+  onBlur,
 }) => {
   const [inputValue, setInputValue] = useState(value);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
@@ -36,6 +45,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+  console.log('this is an api key: ' + apiKey)
 
   useEffect(() => {
     if (!apiKey) {
@@ -62,19 +72,33 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     setIsLoading(true);
 
     try {
+      // Using the new Places API (New)
       const response = await fetch(
-        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
-          text
-        )}&key=${apiKey}&components=country:ph&language=en`,
+        'https://places.googleapis.com/v1/places:autocomplete',
         {
-          method: 'GET',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': apiKey,
+          },
+          body: JSON.stringify({
+            input: text,
+            languageCode: 'en',
+            includedRegionCodes: ['PH'], // Philippines
+          }),
         }
       );
 
       const data = await response.json();
 
-      if (data.status === 'OK' && data.predictions) {
-        setPredictions(data.predictions);
+      if (data.suggestions && data.suggestions.length > 0) {
+        // Transform new API response to match our interface
+        const transformedPredictions = data.suggestions.map((suggestion: any) => ({
+          description: suggestion.placePrediction?.text?.text || '',
+          place_id: suggestion.placePrediction?.placeId || '',
+          placeId: suggestion.placePrediction?.placeId || '',
+        }));
+        setPredictions(transformedPredictions);
         setShowPredictions(true);
       } else {
         setPredictions([]);
@@ -98,7 +122,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     }
 
     // Set new timeout for debouncing
-    timeoutRef.current = setTimeout(() => {
+    (timeoutRef as any).current = setTimeout(() => {
       fetchPredictions(text);
     }, 400);
   };
@@ -108,6 +132,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     onAddressSelect(prediction.description, { place_id: prediction.place_id });
     setPredictions([]);
     setShowPredictions(false);
+    if (onBlur) onBlur();
     Keyboard.dismiss();
   };
 
@@ -116,10 +141,11 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     onAddressSelect('');
     setPredictions([]);
     setShowPredictions(false);
+    if (onBlur) onBlur();
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { zIndex }]}>
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.textInput}
@@ -129,6 +155,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
           onChangeText={handleInputChange}
           editable={editable}
           onFocus={() => {
+            if (onFocus) onFocus();
             if (predictions.length > 0) {
               setShowPredictions(true);
             }
@@ -151,8 +178,8 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
         )}
       </View>
 
-      {showPredictions && predictions.length > 0 && (
-        <View style={styles.predictionsContainer}>
+      {isOpen && showPredictions && predictions.length > 0 && (
+        <View style={[styles.predictionsContainer, { zIndex: zIndex + 1 }]}>
           <FlatList
             data={predictions}
             keyExtractor={(item) => item.place_id}
@@ -186,7 +213,6 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     position: 'relative',
-    zIndex: 1,
   },
   inputContainer: {
     position: 'relative',
@@ -231,8 +257,7 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
-    zIndex: 1000,
+    elevation: 5,
   },
   predictionsList: {
     flex: 1,
