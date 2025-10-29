@@ -45,11 +45,17 @@ export function Applications({
   }
 
   const handleApproveApplication = (application: Application) => {
+    // Ensure only the confirmation modal is visible
+    setIsDetailModalOpen(false)
+    setSelectedApplication(application)
     setConfirmationAction({ type: 'approve', application })
     setIsConfirmationModalOpen(true)
   }
 
   const handleRejectApplication = (application: Application) => {
+    // Ensure only the confirmation modal is visible
+    setIsDetailModalOpen(false)
+    setSelectedApplication(application)
     setConfirmationAction({ type: 'reject', application })
     setIsConfirmationModalOpen(true)
   }

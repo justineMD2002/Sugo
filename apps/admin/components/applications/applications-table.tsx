@@ -168,11 +168,13 @@ const createColumns = (
     cell: ({ row }) => {
       const application = row.original
 
-      const handleApprove = () => {
+      const handleApprove = (e?: React.MouseEvent) => {
+        e?.stopPropagation()
         onApprove(application)
       }
 
-      const handleReject = () => {
+      const handleReject = (e?: React.MouseEvent) => {
+        e?.stopPropagation()
         onReject(application)
       }
 
@@ -185,7 +187,7 @@ const createColumns = (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={handleApprove}
+                onClick={(e) => handleApprove(e)}
                 className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
                 title="Approve application"
               >
@@ -194,7 +196,7 @@ const createColumns = (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={handleReject}
+                onClick={(e) => handleReject(e)}
                 className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                 title="Reject application"
               >
