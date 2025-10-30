@@ -14,6 +14,7 @@ interface UseOrderRealtimeProps {
   onRiderAccepted: (riderDetails: RiderDetails) => void;
   onDeliveryUpdate: (delivery: any) => void;
   onOrderUpdate: (order: any) => void;
+  onOrderCompleted?: (order: any) => void;
   enabled?: boolean;
 }
 
@@ -33,6 +34,7 @@ export const useOrderRealtime = ({
   onRiderAccepted,
   onDeliveryUpdate,
   onOrderUpdate,
+  onOrderCompleted,
   enabled = true,
 }: UseOrderRealtimeProps) => {
   const channelsRef = useRef<RealtimeChannel[]>([]);
@@ -183,7 +185,15 @@ export const useOrderRealtime = ({
         },
         (payload) => {
           console.log('📦 Order updated:', payload.new);
-          onOrderUpdate(payload.new);
+          const order = payload.new as any;
+          onOrderUpdate(order);
+
+          // If order is marked as completed, trigger the completion callback
+          if (order.status === 'completed' && onOrderCompleted) {
+            console.log('✅✅✅ ORDER COMPLETED! ✅✅✅');
+            console.log('Triggering onOrderCompleted callback...');
+            onOrderCompleted(order);
+          }
         }
       )
       .subscribe((status) => {
@@ -203,6 +213,7 @@ export const useOrderRealtime = ({
     onRiderAccepted,
     onDeliveryUpdate,
     onOrderUpdate,
+    onOrderCompleted,
   ]);
 
   return {

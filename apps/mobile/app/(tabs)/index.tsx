@@ -21,6 +21,7 @@ import { uploadProfilePicture } from '@/lib/profilePictureService';
 import { supabase } from '@/lib/supabase';
 import { useOrderRealtime } from '@/hooks/use-order-realtime';
 import { notifyRiderAccepted, notifyNewMessage, notifyOrderStatusChanged, getUserNotifications, getUnreadNotificationCount, markAllNotificationsAsRead } from '@/lib/notificationService';
+import { RatingService } from '@/services/rating.service';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Linking, Platform } from 'react-native';
@@ -144,6 +145,8 @@ export default function SugoScreen() {
   const [currentRating, setCurrentRating] = useState(0);
   const [ratingComment, setRatingComment] = useState('');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('cash');
+  const [completedOrder, setCompletedOrder] = useState<any>(null);
+  const [completedOrderRider, setCompletedOrderRider] = useState<any>(null);
 
   // Service tickets
   const [serviceTickets, setServiceTickets] = useState<ServiceTicket[]>([
@@ -365,6 +368,33 @@ export default function SugoScreen() {
     });
   }, [currentUser]);
 
+  // Callback when order is completed (real-time)
+  const handleOrderCompleted = useCallback((order: any) => {
+    console.log('✅✅✅ handleOrderCompleted CALLED! ✅✅✅');
+    console.log('Completed Order:', JSON.stringify(order, null, 2));
+
+    // Store the completed order info
+    setCompletedOrder(order);
+
+    // Store the rider info from current order
+    if (currentOrder?.rider_id) {
+      setCompletedOrderRider({
+        id: currentOrder.rider_id,
+        name: currentOrder.rider_name,
+        phone: currentOrder.rider_phone,
+        avatar: currentOrder.rider_avatar,
+        rating: currentOrder.rider_rating,
+        vehicle_info: currentOrder.rider_vehicle_info,
+      });
+    }
+
+    // Show rating modal for customers
+    if (userType === 'customer') {
+      console.log('🌟 Showing rating modal for customer...');
+      setShowRatingModal(true);
+    }
+  }, [currentOrder, userType]);
+
   // Log hook parameters for debugging
   console.log('🔍 Polling Hook Parameters:', {
     orderId: currentOrder?.id,
@@ -382,8 +412,61 @@ export default function SugoScreen() {
     onRiderAccepted: handleRiderAccepted,
     onDeliveryUpdate: handleDeliveryUpdate,
     onOrderUpdate: handleOrderUpdate,
+    onOrderCompleted: handleOrderCompleted,
     enabled: !!currentOrder?.id && !!currentUser?.id,
   });
+
+  // Submit rider rating
+  const submitRating = async () => {
+    if (!currentRating || !completedOrder || !completedOrderRider || !currentUser) {
+      Alert.alert('Error', 'Please select a rating before submitting.');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+
+      const result = await RatingService.createRating({
+        order_id: completedOrder.id,
+        rater_id: currentUser.id,
+        rated_user_id: completedOrderRider.id,
+        rating: currentRating,
+        comment: ratingComment.trim() || undefined,
+      });
+
+      if (result.success) {
+        console.log('✅ Rating submitted successfully!');
+        setShowToast(true);
+        setToastMessage('Thank you for your feedback!');
+        setToastType('success');
+
+        // Close modal and return to home
+        await closeRatingModal();
+      } else {
+        console.error('❌ Failed to submit rating:', result.error);
+        Alert.alert('Error', result.error || 'Failed to submit rating. Please try again.');
+      }
+    } catch (error) {
+      console.error('❌ Error submitting rating:', error);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle closing rating modal and returning to home
+  const closeRatingModal = async () => {
+    setShowRatingModal(false);
+    setCurrentRating(0);
+    setRatingComment('');
+    setCompletedOrder(null);
+    setCompletedOrderRider(null);
+
+    // Clear current order and navigate to home
+    setCurrentOrder(null);
+    await clearOrderFromStorage();
+    setCurrentScreen('home');
+  };
 
   const sendMessage = async () => {
     // Get the active order (either currentOrder for customers or currentDelivery.order for riders)
@@ -2969,19 +3052,64 @@ export default function SugoScreen() {
         </View>
       </Modal>
 
-      <Modal visible={showRatingModal} onClose={() => setShowRatingModal(false)} title="Rate Your Experience">
+      <Modal visible={showRatingModal} onClose={closeRatingModal} title="Order Completed!">
         <View style={{ gap: 12, marginBottom: 16 }}>
-          <Text style={{ color: '#6b7280' }}>How was your {currentOrder ? 'delivery' : 'service'} experience?</Text>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
+          {/* Order Completion Message */}
+          <View style={{ backgroundColor: '#dcfce7', padding: 12, borderRadius: 8, marginBottom: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="checkmark-circle" size={24} color="#16a34a" />
+              <Text style={{ color: '#16a34a', fontWeight: '600', flex: 1 }}>
+                Your order has been completed!
+              </Text>
+            </View>
+          </View>
+
+          {/* Rider Info */}
+          {completedOrderRider && (
+            <View style={{ marginBottom: 8 }}>
+              <Text style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Delivered by</Text>
+              <Text style={{ fontWeight: '600', fontSize: 16 }}>{completedOrderRider.name}</Text>
+              {completedOrderRider.vehicle_info && (
+                <Text style={{ fontSize: 12, color: '#6b7280' }}>{completedOrderRider.vehicle_info}</Text>
+              )}
+            </View>
+          )}
+
+          {/* Rating Section */}
+          <Text style={{ color: '#6b7280', fontWeight: '500' }}>Rate your delivery experience</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 8 }}>
             {[1, 2, 3, 4, 5].map((star) => (
               <TouchableOpacity key={star} onPress={() => setCurrentRating(star)}>
-                <Ionicons name={star <= currentRating ? 'star' : 'star-outline'} size={32} color="#fbbf24" />
+                <Ionicons name={star <= currentRating ? 'star' : 'star-outline'} size={36} color="#fbbf24" />
               </TouchableOpacity>
             ))}
           </View>
-          <TextInput placeholder="Comments (optional)" style={[styles.input, { height: 80 }]} multiline placeholderTextColor="#9ca3af" value={ratingComment} onChangeText={setRatingComment} />
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => { setShowRatingModal(false); setCurrentRating(0); setRatingComment(''); }}>
+
+          {/* Comment Input */}
+          <TextInput
+            placeholder="Share your experience (optional)"
+            style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+            multiline
+            placeholderTextColor="#9ca3af"
+            value={ratingComment}
+            onChangeText={setRatingComment}
+          />
+
+          {/* Submit Button */}
+          <TouchableOpacity
+            style={[styles.primaryBtn, { backgroundColor: '#dc2626' }]}
+            onPress={submitRating}
+            disabled={!currentRating}
+          >
             <Text style={styles.primaryText}>Submit Rating</Text>
+          </TouchableOpacity>
+
+          {/* Skip Button */}
+          <TouchableOpacity
+            style={styles.secondaryBtn}
+            onPress={closeRatingModal}
+          >
+            <Text style={{ color: '#6b7280', fontWeight: '600', textAlign: 'center' }}>Skip for now</Text>
           </TouchableOpacity>
         </View>
       </Modal>
