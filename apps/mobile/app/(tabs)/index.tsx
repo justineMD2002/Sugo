@@ -21,9 +21,10 @@ import { uploadProfilePicture } from '@/lib/profilePictureService';
 import { supabase } from '@/lib/supabase';
 import { useOrderRealtime } from '@/hooks/use-order-realtime';
 import { notifyRiderAccepted, notifyNewMessage, notifyOrderStatusChanged, getUserNotifications, getUnreadNotificationCount, markAllNotificationsAsRead } from '@/lib/notificationService';
+import { EarningsService, EarningsSummary, DailyEarnings } from '@/services/earnings.service';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Linking, Platform } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Linking, Platform, RefreshControl } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type Screen = 'splash' | 'login' | 'signup' | 'password' | 'otp' | 'home' | 'orders' | 'profile' | 'deliveries' | 'earnings';
@@ -97,6 +98,11 @@ export default function SugoScreen() {
   const [showFindingRider, setShowFindingRider] = useState(false);
   const [isBookingDelivery, setIsBookingDelivery] = useState(false);
   const [showProfilePictureModal, setShowProfilePictureModal] = useState(false);
+
+  // Earnings state
+  const [earningsSummary, setEarningsSummary] = useState<EarningsSummary | null>(null);
+  const [dailyEarnings, setDailyEarnings] = useState<DailyEarnings[]>([]);
+  const [isEarningsLoading, setIsEarningsLoading] = useState(false);
 
   // Address CRUD state
   const [showAddAddress, setShowAddAddress] = useState(false);
@@ -649,7 +655,41 @@ export default function SugoScreen() {
     if (currentScreen === 'deliveries' && userType === 'rider') {
       loadPastDeliveries();
     }
+    if (currentScreen === 'earnings' && userType === 'rider') {
+      loadEarnings();
+    }
   }, [currentScreen, userType, currentUser?.id]);
+
+  // Load earnings data for riders
+  const loadEarnings = async () => {
+    if (!currentUser?.id) return;
+    setIsEarningsLoading(true);
+    try {
+      // Fetch earnings summary
+      const summaryResult = await EarningsService.getEarningsSummary(currentUser.id);
+      if (summaryResult.success && summaryResult.data) {
+        setEarningsSummary(summaryResult.data);
+      } else {
+        console.error('Error loading earnings summary:', summaryResult.error);
+        setEarningsSummary(null);
+      }
+
+      // Fetch daily earnings for the past 7 days
+      const dailyResult = await EarningsService.getDailyEarnings(currentUser.id, 7);
+      if (dailyResult.success && dailyResult.data) {
+        setDailyEarnings(dailyResult.data);
+      } else {
+        console.error('Error loading daily earnings:', dailyResult.error);
+        setDailyEarnings([]);
+      }
+    } catch (e) {
+      console.error('Unexpected error loading earnings:', e);
+      setEarningsSummary(null);
+      setDailyEarnings([]);
+    } finally {
+      setIsEarningsLoading(false);
+    }
+  };
 
   // Accept order as a rider
   const acceptOrder = async (order: any) => {
@@ -2461,25 +2501,50 @@ export default function SugoScreen() {
           ) : currentScreen === 'earnings' ? (
             <>
               <Header title="Earnings" />
-              <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
-                <SectionCard>
-                  <Text style={{ color: '#6b7280', marginBottom: 4 }}>Total Earnings Today</Text>
-                  <Text style={{ fontSize: 32, fontWeight: '800' }}>₱1,240.00</Text>
-                </SectionCard>
-                {[{ date: 'Today', deliveries: 12, amount: '₱1,240' }, { date: 'Yesterday', deliveries: 15, amount: '₱1,680' }].map((d, idx) => (
-                  <SectionCard key={idx}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                      <View>
-                        <Text style={{ fontWeight: '600' }}>{d.date}</Text>
-                        <Text style={{ color: '#6b7280', fontSize: 12 }}>{d.deliveries} deliveries</Text>
-                      </View>
-                      <Text style={{ fontWeight: '800', color: '#dc2626' }}>{d.amount}</Text>
-                    </View>
+              <ScrollView 
+                contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={isEarningsLoading}
+                    onRefresh={loadEarnings}
+                    colors={['#dc2626']}
+                    tintColor="#dc2626"
+                  />
+                }
+              >
+                {isEarningsLoading && dailyEarnings.length === 0 ? (
+                  <SectionCard>
+                    <Text style={{ color: '#6b7280', textAlign: 'center' }}>Loading earnings...</Text>
                   </SectionCard>
-                ))}
-                <TouchableOpacity style={styles.primaryBtn}>
-                  <Text style={styles.primaryText}>Cash Out Earnings</Text>
-                </TouchableOpacity>
+                ) : (
+                  <>
+                    <SectionCard>
+                      <Text style={{ color: '#6b7280', marginBottom: 4 }}>Total Earnings Today</Text>
+                      <Text style={{ fontSize: 32, fontWeight: '800' }}>₱{(earningsSummary?.totalEarningsToday || 0).toFixed(2)}</Text>
+                      <Text style={{ color: '#6b7280', fontSize: 12, marginTop: 4 }}>
+                        {earningsSummary?.totalDeliveriesToday || 0} deliveries
+                      </Text>
+                    </SectionCard>
+                    
+                    {dailyEarnings.map((d, idx) => (
+                      <SectionCard key={idx}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <View>
+                            <Text style={{ fontWeight: '600' }}>{d.displayDate}</Text>
+                            <Text style={{ color: '#6b7280', fontSize: 12 }}>{d.deliveries} deliveries</Text>
+                          </View>
+                          <Text style={{ fontWeight: '800', color: '#dc2626' }}>₱{d.amount.toFixed(2)}</Text>
+                        </View>
+                      </SectionCard>
+                    ))}
+
+                    {dailyEarnings.length === 0 && (
+                      <SectionCard>
+                        <Text style={{ color: '#6b7280', textAlign: 'center' }}>No earnings data available</Text>
+                      </SectionCard>
+                    )}
+                  </>
+                )}
               </ScrollView>
             </>
           ) : currentScreen === 'profile' ? (
