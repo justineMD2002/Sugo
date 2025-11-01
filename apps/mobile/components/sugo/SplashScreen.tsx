@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, StyleSheet, Animated, Image } from 'react-native';
 
 type SplashScreenProps = {
   onFinish: () => void;
@@ -26,9 +25,11 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
   return (
     <View style={styles.container}>
       <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
-        <View style={styles.logoBox}>
-          <Ionicons name="cube" size={64} color="#dc2626" />
-        </View>
+        <Image 
+          source={require('@/assets/images/icon.png')} 
+          style={styles.logo}
+          resizeMode="contain"
+        />
         <Text style={styles.title}>SUGO</Text>
         <Text style={styles.subtitle}>Fast & Reliable Delivery</Text>
         <View style={styles.dots}>
@@ -52,13 +53,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  logoBox: {
+  logo: {
     width: 128,
     height: 128,
-    borderRadius: 999,
-    backgroundColor: '#fef2f2',
-    alignItems: 'center',
-    justifyContent: 'center',
     marginBottom: 16,
   },
   title: {

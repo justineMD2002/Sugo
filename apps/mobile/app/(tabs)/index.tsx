@@ -9,7 +9,7 @@ import LoadingOverlay from '@/components/sugo/LoadingOverlay';
 import Modal from '@/components/sugo/Modal';
 import NotificationsModal from '@/components/sugo/NotificationsModal';
 import ProfilePictureModal from '@/components/sugo/ProfilePictureModal';
-import SearchModal from '@/components/sugo/SearchModal';
+
 import SectionCard from '@/components/sugo/SectionCard';
 import ServiceSelector from '@/components/sugo/ServiceSelector';
 import SettingsModal from '@/components/sugo/SettingsModal';
@@ -24,7 +24,7 @@ import { notifyRiderAccepted, notifyNewMessage, notifyOrderStatusChanged, getUse
 import { RatingService } from '@/services/rating.service';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Linking, Platform } from 'react-native';
+import { Alert, ScrollView, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View, Linking, Platform, ActivityIndicator, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type Screen = 'splash' | 'login' | 'signup' | 'password' | 'otp' | 'home' | 'orders' | 'profile' | 'deliveries' | 'earnings';
@@ -49,6 +49,22 @@ export default function SugoScreen() {
   const [pastOrders, setPastOrders] = useState<any[]>([]);
   const [pastDeliveries, setPastDeliveries] = useState<any[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  
+  // Pagination state
+  const [ordersPage, setOrdersPage] = useState(0);
+  const [deliveriesPage, setDeliveriesPage] = useState(0);
+  const [hasMoreOrders, setHasMoreOrders] = useState(true);
+  const [hasMoreDeliveries, setHasMoreDeliveries] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  
+  const ITEMS_PER_PAGE = 3;
+
+  // Search and filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilters, setActiveFilters] = useState({
+    dateRange: 'all',
+    status: 'all',
+  });
   const [userType, setUserType] = useState<UserType>('customer');
   const [selectedService, setSelectedService] = useState<Service>('delivery');
   const [workerService, setWorkerService] = useState<Service>('delivery');
@@ -91,7 +107,6 @@ export default function SugoScreen() {
   const [showAddPaymentMethod, setShowAddPaymentMethod] = useState(false);
   const [showServiceTicketDetails, setShowServiceTicketDetails] = useState(false);
   const [showCreateTicket, setShowCreateTicket] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showShare, setShowShare] = useState(false);
@@ -630,17 +645,26 @@ export default function SugoScreen() {
   };
 
   // Fetch pending orders for riders
-  const fetchPendingOrders = async () => {
+  const fetchPendingOrders = async (searchQueryParam?: string) => {
     // Clear existing orders first
     setPendingOrders([]);
 
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('orders')
         .select('*')
         .eq('status', 'pending')
-        .eq('service_type', workerService)
-        .order('created_at', { ascending: false });
+        .eq('service_type', workerService);
+
+      // Apply server-side search if provided
+      if (searchQueryParam && searchQueryParam.trim()) {
+        const searchTerm = searchQueryParam.trim();
+        query = query.or(
+          `order_number.ilike.%${searchTerm}%,pickup_address.ilike.%${searchTerm}%,delivery_address.ilike.%${searchTerm}%,item_description.ilike.%${searchTerm}%`
+        );
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching pending orders:', error);
@@ -654,12 +678,18 @@ export default function SugoScreen() {
   };
 
   // Load past orders for customers
-  const loadPastOrders = async () => {
+  const loadPastOrders = async (searchQueryParam?: string, filters?: typeof activeFilters, page: number = 0, append: boolean = false) => {
     if (!currentUser?.id) return;
-    setIsHistoryLoading(true);
+    
+    if (page === 0) {
+      setIsHistoryLoading(true);
+    } else {
+      setIsLoadingMore(true);
+    }
+    
     try {
-      // Try a relational select: orders -> deliveries -> users (as rider)
-      const { data, error } = await supabase
+      // Build base query with relational select
+      let query = supabase
         .from('orders')
         .select(`
           *,
@@ -669,12 +699,54 @@ export default function SugoScreen() {
           )
         `)
         .eq('customer_id', currentUser.id)
-        .in('status', ['delivered', 'completed', 'cancelled'])
-        .order('created_at', { ascending: false });
+        .in('status', ['delivered', 'completed', 'cancelled']);
+
+      // Apply server-side search if provided
+      if (searchQueryParam && searchQueryParam.trim()) {
+        const searchTerm = searchQueryParam.trim();
+        query = query.or(
+          `order_number.ilike.%${searchTerm}%,pickup_address.ilike.%${searchTerm}%,delivery_address.ilike.%${searchTerm}%,status.ilike.%${searchTerm}%`
+        );
+      }
+
+      // Apply status filter
+      if (filters && filters.status !== 'all') {
+        query = query.eq('status', filters.status);
+      }
+
+      // Apply date range filter
+      if (filters && filters.dateRange !== 'all') {
+        const now = new Date();
+        let startDate: Date;
+
+        switch (filters.dateRange) {
+          case 'today':
+            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            query = query.gte('created_at', startDate.toISOString());
+            break;
+          case 'this_week':
+            startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            query = query.gte('created_at', startDate.toISOString());
+            break;
+          case 'this_month':
+            startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            query = query.gte('created_at', startDate.toISOString());
+            break;
+        }
+      }
+
+      // Apply pagination
+      const from = page * ITEMS_PER_PAGE;
+      const to = from + ITEMS_PER_PAGE - 1;
+      query = query.range(from, to);
+
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error loading past orders with join:', error);
-        setPastOrders([]);
+        if (!append) {
+          setPastOrders([]);
+        }
         return;
       }
 
@@ -689,50 +761,204 @@ export default function SugoScreen() {
         };
       });
 
-      setPastOrders(normalized);
+      if (append) {
+        setPastOrders(prev => [...prev, ...normalized]);
+      } else {
+        setPastOrders(normalized);
+      }
+
+      // Check if there are more items
+      setHasMoreOrders(normalized.length === ITEMS_PER_PAGE);
     } catch (e) {
       console.error('Unexpected error loading past orders:', e);
-      setPastOrders([]);
+      if (!append) {
+        setPastOrders([]);
+      }
     } finally {
       setIsHistoryLoading(false);
+      setIsLoadingMore(false);
     }
   };
 
   // Load past deliveries for riders
-  const loadPastDeliveries = async () => {
+  const loadPastDeliveries = async (searchQueryParam?: string, filters?: typeof activeFilters, page: number = 0, append: boolean = false) => {
     if (!currentUser?.id) return;
-    setIsHistoryLoading(true);
+    
+    if (page === 0) {
+      setIsHistoryLoading(true);
+    } else {
+      setIsLoadingMore(true);
+    }
+    
     try {
-      const { data, error } = await supabase
+      // Build base query with relational select
+      let query = supabase
         .from('deliveries')
         .select(`*, order:orders(*)`)
         .eq('rider_id', currentUser.id)
-        .or('is_completed.eq.true,status.eq.completed')
-        .order('created_at', { ascending: false });
+        .or('is_completed.eq.true,status.eq.completed');
+
+      // Apply server-side search if provided
+      // Search through order fields since deliveries are linked to orders
+      if (searchQueryParam && searchQueryParam.trim()) {
+        const searchTerm = searchQueryParam.trim();
+        // Note: Since we're searching order fields through a join, we need to filter after fetching
+        // For now, we'll search what we can at the delivery level and filter client-side for order fields
+        query = query.or(
+          `status.ilike.%${searchTerm}%`
+        );
+      }
+
+      // Apply status filter
+      if (filters && filters.status !== 'all') {
+        query = query.eq('status', filters.status);
+      }
+
+      // Apply date range filter
+      if (filters && filters.dateRange !== 'all') {
+        const now = new Date();
+        let startDate: Date;
+
+        switch (filters.dateRange) {
+          case 'today':
+            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            query = query.gte('created_at', startDate.toISOString());
+            break;
+          case 'this_week':
+            startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            query = query.gte('created_at', startDate.toISOString());
+            break;
+          case 'this_month':
+            startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            query = query.gte('created_at', startDate.toISOString());
+            break;
+        }
+      }
+
+      // Apply pagination (fetch more to account for client-side filtering)
+      const from = page * ITEMS_PER_PAGE;
+      const to = from + ITEMS_PER_PAGE - 1;
+      query = query.range(from, to);
+
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error loading past deliveries:', error);
-        setPastDeliveries([]);
+        if (!append) {
+          setPastDeliveries([]);
+        }
         return;
       }
-      setPastDeliveries(data || []);
+
+      // If we have a search query, filter by order fields client-side
+      // (since Supabase doesn't easily support searching nested relations)
+      let filteredData = data || [];
+      if (searchQueryParam && searchQueryParam.trim()) {
+        const searchTerm = searchQueryParam.toLowerCase().trim();
+        filteredData = filteredData.filter((delivery: any) => {
+          const order = delivery.order;
+          if (!order) return false;
+          return (
+            (order.order_number && order.order_number.toLowerCase().includes(searchTerm)) ||
+            (order.pickup_address && order.pickup_address.toLowerCase().includes(searchTerm)) ||
+            (order.delivery_address && order.delivery_address.toLowerCase().includes(searchTerm)) ||
+            (order.item_description && order.item_description.toLowerCase().includes(searchTerm)) ||
+            (order.receiver_name && order.receiver_name.toLowerCase().includes(searchTerm)) ||
+            (order.receiver_phone && order.receiver_phone.toLowerCase().includes(searchTerm))
+          );
+        });
+      }
+
+      if (append) {
+        setPastDeliveries(prev => [...prev, ...filteredData]);
+      } else {
+        setPastDeliveries(filteredData);
+      }
+
+      // Check if there are more items (if we got a full page, assume there might be more)
+      setHasMoreDeliveries((data || []).length === ITEMS_PER_PAGE);
     } catch (e) {
       console.error('Unexpected error loading past deliveries:', e);
-      setPastDeliveries([]);
+      if (!append) {
+        setPastDeliveries([]);
+      }
     } finally {
       setIsHistoryLoading(false);
+      setIsLoadingMore(false);
     }
   };
 
-  // Trigger history loads on screen change
+  // Trigger history loads on screen change, search query, or filters change with debouncing
   useEffect(() => {
     if (currentScreen === 'orders' && userType === 'customer') {
-      loadPastOrders();
+      // Reset pagination when search or filters change
+      setOrdersPage(0);
+      setHasMoreOrders(true);
+      
+      // Debounce search query to avoid too many requests
+      const timeoutId = setTimeout(() => {
+        loadPastOrders(searchQuery, activeFilters, 0, false);
+      }, searchQuery ? 300 : 0); // 300ms delay only when searching
+
+      return () => clearTimeout(timeoutId);
     }
     if (currentScreen === 'deliveries' && userType === 'rider') {
-      loadPastDeliveries();
+      // Reset pagination when search or filters change
+      setDeliveriesPage(0);
+      setHasMoreDeliveries(true);
+      
+      // Debounce search query to avoid too many requests
+      const timeoutId = setTimeout(() => {
+        loadPastDeliveries(searchQuery, activeFilters, 0, false);
+      }, searchQuery ? 300 : 0); // 300ms delay only when searching
+
+      return () => clearTimeout(timeoutId);
     }
-  }, [currentScreen, userType, currentUser?.id]);
+  }, [currentScreen, userType, currentUser, searchQuery, activeFilters]);
+
+  // Load more orders
+  const loadMoreOrders = useCallback(() => {
+    if (!isLoadingMore && hasMoreOrders && !isHistoryLoading) {
+      const nextPage = ordersPage + 1;
+      setOrdersPage(nextPage);
+      loadPastOrders(searchQuery, activeFilters, nextPage, true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ordersPage, hasMoreOrders, isLoadingMore, isHistoryLoading, searchQuery, activeFilters]);
+
+  // Load more deliveries
+  const loadMoreDeliveries = useCallback(() => {
+    if (!isLoadingMore && hasMoreDeliveries && !isHistoryLoading) {
+      const nextPage = deliveriesPage + 1;
+      setDeliveriesPage(nextPage);
+      loadPastDeliveries(searchQuery, activeFilters, nextPage, true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deliveriesPage, hasMoreDeliveries, isLoadingMore, isHistoryLoading, searchQuery, activeFilters]);
+
+  // Filtered orders - now handled server-side, so this is just a passthrough
+  const filteredPastOrders = useMemo(() => {
+    return pastOrders; // Server-side filtering is handled in loadPastOrders
+  }, [pastOrders]);
+
+
+
+  // Handle filter application
+  const handleFilterApply = (filters: any) => {
+    setActiveFilters(filters);
+    // Server-side filtering will be triggered by useEffect dependency
+  };
+
+  // Reset search and filters
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setActiveFilters({
+      dateRange: 'all',
+      status: 'all',
+    });
+  };
+
+
 
   // Accept order as a rider
   const acceptOrder = async (order: any) => {
@@ -1368,7 +1594,10 @@ export default function SugoScreen() {
   // Fetch pending orders when rider is on home screen
   useEffect(() => {
     if (userType === 'rider' && currentScreen === 'home' && currentUser && !currentDelivery) {
-      fetchPendingOrders();
+      // Debounce search query to avoid too many requests
+      const timeoutId = setTimeout(() => {
+        fetchPendingOrders(searchQuery);
+      }, searchQuery ? 300 : 0); // 300ms delay only when searching
 
       // Set up real-time subscription for new pending orders
       const ordersChannel = supabase
@@ -1385,9 +1614,16 @@ export default function SugoScreen() {
             console.log('New pending order:', payload);
             const newOrder = payload.new as any;
 
-            // Only add if it matches the rider's service type
+            // Only add if it matches the rider's service type and search query
             if (newOrder.service_type === workerService) {
-              setPendingOrders((prev) => [newOrder, ...prev]);
+              // Only add to list if it matches search (or no search)
+              if (!searchQuery.trim() || 
+                  (newOrder.order_number && newOrder.order_number.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                  (newOrder.pickup_address && newOrder.pickup_address.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                  (newOrder.delivery_address && newOrder.delivery_address.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                  (newOrder.item_description && newOrder.item_description.toLowerCase().includes(searchQuery.toLowerCase()))) {
+                setPendingOrders((prev) => [newOrder, ...prev]);
+              }
             }
           }
         )
@@ -1410,10 +1646,11 @@ export default function SugoScreen() {
         .subscribe();
 
       return () => {
+        clearTimeout(timeoutId);
         supabase.removeChannel(ordersChannel);
       };
     }
-  }, [userType, currentScreen, currentUser, workerService, currentDelivery]);
+  }, [userType, currentScreen, currentUser, workerService, currentDelivery, searchQuery]);
 
   // Fetch profile data when user navigates to profile screen
   useEffect(() => {
@@ -1517,19 +1754,19 @@ export default function SugoScreen() {
       showToastMessage('Please enter a password', 'error');
       return;
     }
-    
+
     if (signupPassword.length < 6) {
       showToastMessage('Password must be at least 6 characters', 'error');
       return;
     }
-    
+
     if (signupPassword !== signupConfirmPassword) {
       showToastMessage('Passwords do not match', 'error');
       return;
     }
 
     setIsLoading(true);
-    
+
     try {
       const signupData: SignUpData = {
         fullName: signupFullName.trim(),
@@ -1691,7 +1928,7 @@ export default function SugoScreen() {
         setShowAddPaymentMethod(false);
         setShowServiceTicketDetails(false);
         setShowCreateTicket(false);
-        setShowSearch(false);
+
         setShowFilter(false);
         setShowHelp(false);
         setShowShare(false);
@@ -1984,7 +2221,7 @@ export default function SugoScreen() {
     );
   };
 
-  
+
   const openEditAddressModal = (address: Address) => {
     setSelectedAddress(address);
     setAddressName(address.address_name);
@@ -2082,7 +2319,7 @@ export default function SugoScreen() {
     setShowEditProfile(true);
   };
 
-  
+
   const bottomItems = useMemo(() => {
     if (userType === 'rider') {
       return [
@@ -2111,9 +2348,11 @@ export default function SugoScreen() {
         <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', width: '100%' }} showsVerticalScrollIndicator={false}>
           <View style={{ backgroundColor: '#fff', borderRadius: 24, padding: 20, width: '90%', maxWidth: 700, minWidth: 320, gap: 16 }}>
             <View style={{ alignItems: 'center', gap: 12, marginBottom: 12 }}>
-              <View style={{ width: 80, height: 80, borderRadius: 999, backgroundColor: '#fef2f2', alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="cube" size={36} color="#dc2626" />
-              </View>
+              <Image 
+                source={require('@/assets/images/icon.png')} 
+                style={{ width: 80, height: 80 }}
+                resizeMode="contain"
+              />
               <Text style={{ fontSize: 32, fontWeight: '800', color: '#dc2626' }}>SUGO</Text>
               <Text style={{ color: '#6b7280' }}>Log in with Phone Number</Text>
             </View>
@@ -2149,7 +2388,7 @@ export default function SugoScreen() {
             </View>
             <View style={{ alignItems: 'center' }}>
               <TouchableOpacity onPress={() => setCurrentScreen('signup')} disabled={isLoading}>
-                <Text style={{ color: '#dc2626', fontWeight: '600', opacity: isLoading ? 0.4 : 1 }}>Don't have an account? Sign up</Text>
+                <Text style={{ color: '#dc2626', fontWeight: '600', opacity: isLoading ? 0.4 : 1 }}>Don&apos;t have an account? Sign up</Text>
               </TouchableOpacity>
             </View>
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, opacity: isLoading ? 0.4 : 1 }}>
@@ -2186,7 +2425,14 @@ export default function SugoScreen() {
       <View style={{ flex: 1, backgroundColor: '#fee2e2', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
         <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', width: '100%' }} showsVerticalScrollIndicator={false}>
           <View style={{ backgroundColor: '#fff', borderRadius: 24, padding: 20, width: '90%', maxWidth: 700, minWidth: 320, gap: 12 }}>
-            <Text style={{ fontSize: 22, fontWeight: '700', color: '#111827', textAlign: 'center', marginBottom: 8 }}>Create Account</Text>
+            <View style={{ alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <Image 
+                source={require('@/assets/images/icon.png')} 
+                style={{ width: 80, height: 80 }}
+                resizeMode="contain"
+              />
+              <Text style={{ fontSize: 22, fontWeight: '700', color: '#111827', textAlign: 'center' }}>Create Account</Text>
+            </View>
             <TextInput
               placeholder="Full Name"
               placeholderTextColor="#9ca3af"
@@ -2445,18 +2691,83 @@ export default function SugoScreen() {
           ) : currentScreen === 'deliveries' ? (
             <>
               <Header title={`Past Deliveries`} subtitle={`Your delivery history`} />
-              <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
-                {isHistoryLoading ? (
-                  <SectionCard>
-                    <Text style={{ color: '#6b7280' }}>Loading history...</Text>
-                  </SectionCard>
-                ) : pastDeliveries.length === 0 ? (
-                  <SectionCard>
-                    <Text style={{ color: '#6b7280' }}>No past deliveries yet</Text>
-                  </SectionCard>
-                ) : (
-                  pastDeliveries.map((d: any) => (
-                    <SectionCard key={d.id}>
+              <FlatList
+                data={pastDeliveries}
+                keyExtractor={(item) => `delivery-${item.id}`}
+                ListHeaderComponent={
+                  <>
+                    {/* Search and Filter Bar */}
+                    <View style={{ flexDirection: 'row', gap: 12, marginBottom: 8, paddingHorizontal: 16, paddingTop: 16 }}>
+                      <View 
+                        style={[
+                          { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#f3f4f6', borderRadius: 12, paddingHorizontal: 12, gap: 8 },
+                          Platform.OS === 'web' && { outline: 'none', outlineWidth: 0, outlineStyle: 'none' } as any
+                        ]}
+                      >
+                        <Ionicons name="search" size={20} color="#9ca3af" />
+                        <TextInput
+                          style={[
+                            { flex: 1, paddingVertical: 12, color: '#111827', fontSize: 16, borderWidth: 0 },
+                            Platform.OS === 'web' && { outline: 'none', outlineWidth: 0, outlineStyle: 'none', WebkitAppearance: 'none' } as any
+                          ]}
+                          placeholder="Search deliveries by ID, address, receiver..."
+                          placeholderTextColor="#9ca3af"
+                          value={searchQuery}
+                          onChangeText={setSearchQuery}
+                        />
+                        {searchQuery ? (
+                          <TouchableOpacity onPress={() => setSearchQuery('')}>
+                            <Ionicons name="close-circle" size={18} color="#6b7280" />
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+                      <TouchableOpacity
+                        style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: 12,
+                          backgroundColor: activeFilters.dateRange !== 'all' || activeFilters.status !== 'all' ? '#dc2626' : '#f3f4f6',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderWidth: activeFilters.dateRange !== 'all' || activeFilters.status !== 'all' ? 0 : 1,
+                          borderColor: '#e5e7eb',
+                        }}
+                        onPress={() => setShowFilter(true)}
+                      >
+                        <Ionicons name="filter" size={20} color={activeFilters.dateRange !== 'all' || activeFilters.status !== 'all' ? '#fff' : '#6b7280'} />
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                }
+                ListEmptyComponent={
+                  isHistoryLoading ? (
+                    <View style={{ padding: 16 }}>
+                      <SectionCard>
+                        <Text style={{ color: '#6b7280' }}>Loading history...</Text>
+                      </SectionCard>
+                    </View>
+                  ) : (
+                    <View style={{ padding: 16 }}>
+                      <SectionCard>
+                        <Text style={{ color: '#6b7280' }}>
+                          {searchQuery || activeFilters.dateRange !== 'all' || activeFilters.status !== 'all'
+                            ? 'No deliveries match your search or filters'
+                            : 'No past deliveries yet'}
+                        </Text>
+                      </SectionCard>
+                    </View>
+                  )
+                }
+                ListFooterComponent={
+                  isLoadingMore ? (
+                    <View style={{ padding: 16, alignItems: 'center' }}>
+                      <ActivityIndicator size="small" color="#dc2626" />
+                    </View>
+                  ) : null
+                }
+                renderItem={({ item: d }) => (
+                  <View style={{ paddingHorizontal: 16 }}>
+                    <SectionCard>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <View>
                           <Text style={styles.metaLabel}>Order ID</Text>
@@ -2506,9 +2817,13 @@ export default function SugoScreen() {
                         </View>
                       </View>
                     </SectionCard>
-                  ))
+                  </View>
                 )}
-              </ScrollView>
+                contentContainerStyle={{ gap: 12, paddingBottom: 100 }}
+                onEndReached={loadMoreDeliveries}
+                onEndReachedThreshold={0.2}
+                removeClippedSubviews={false}
+              />
             </>
           ) : currentScreen === 'earnings' ? (
             <>
@@ -2572,14 +2887,61 @@ export default function SugoScreen() {
               <View style={{ padding: 12, backgroundColor: '#f9fafb', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' }}>
                 <TouchableOpacity
                   style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 8 }}
-                  onPress={fetchPendingOrders}
+                  onPress={() => fetchPendingOrders(searchQuery)}
                 >
                   <Ionicons name="refresh" size={20} color="#dc2626" />
                   <Text style={{ color: '#dc2626', fontWeight: '600' }}>Refresh Orders</Text>
                 </TouchableOpacity>
               </View>
               <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
-                {pendingOrders.length === 0 ? (
+              {/* Search and Filter Bar */}
+              <View style={{ flexDirection: 'row', gap: 12, marginBottom: 8 }}>
+                <View 
+                  style={[
+                    { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#f3f4f6', borderRadius: 12, paddingHorizontal: 12, gap: 8 },
+                    Platform.OS === 'web' && { outline: 'none', outlineWidth: 0, outlineStyle: 'none' } as any
+                  ]}
+                >
+                    <Ionicons name="search" size={20} color="#9ca3af" />
+                    <TextInput
+                      style={[
+                        { flex: 1, paddingVertical: 12, color: '#111827', fontSize: 16, borderWidth: 0 },
+                        Platform.OS === 'web' && { outline: 'none', outlineWidth: 0, outlineStyle: 'none', WebkitAppearance: 'none' } as any
+                      ]}
+                      placeholder="Search orders by ID, address, rider..."
+                      placeholderTextColor="#9ca3af"
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                    />
+                    {searchQuery ? (
+                      <TouchableOpacity onPress={() => setSearchQuery('')}>
+                        <Ionicons name="close-circle" size={18} color="#6b7280" />
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                  <TouchableOpacity
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 12,
+                      backgroundColor: activeFilters.dateRange !== 'all' || activeFilters.status !== 'all' ? '#dc2626' : '#f3f4f6',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderWidth: activeFilters.dateRange !== 'all' || activeFilters.status !== 'all' ? 0 : 1,
+                      borderColor: '#e5e7eb',
+                    }}
+                      onPress={() => setShowFilter(true)}
+                    >
+                      <Ionicons name="filter" size={20} color={activeFilters.dateRange !== 'all' || activeFilters.status !== 'all' ? '#fff' : '#6b7280'} />
+                    </TouchableOpacity>
+                  </View>
+                {/* Display pending orders - filtering is now server-side */}
+                {pendingOrders.length === 0 && searchQuery ? (
+                  <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
+                    <Ionicons name="search" size={64} color="#d1d5db" />
+                    <Text style={{ color: '#6b7280', fontSize: 16, marginTop: 12 }}>No pending {workerService === 'delivery' ? 'deliveries' : 'jobs'} match your search</Text>
+                  </View>
+                ) : pendingOrders.length === 0 && !searchQuery ? (
                   <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
                     <Ionicons name="cube-outline" size={64} color="#d1d5db" />
                     <Text style={{ color: '#6b7280', fontSize: 16, marginTop: 12 }}>No pending {workerService === 'delivery' ? 'deliveries' : 'jobs'} available</Text>
@@ -2727,25 +3089,85 @@ export default function SugoScreen() {
               <Header
                 title="Past Orders"
                 subtitle="Your delivery history"
-                showSearch
-                showSettings
-                onSearchPress={() => setShowSearch(true)}
-                onSettingsPress={() => setShowFilter(true)}
               />
-              <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
-                {isHistoryLoading ? (
-                  <SectionCard>
-                    <Text style={{ color: '#6b7280' }}>Loading history...</Text>
-                  </SectionCard>
-                ) : pastOrders.length === 0 ? (
-                  <SectionCard>
-                    <Text style={{ color: '#6b7280' }}>No past orders yet</Text>
-                  </SectionCard>
-                ) : (
-                  pastOrders.map((o: any) => (
-                    <>
-                      <SectionCard key={`order-${o.id}`}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <FlatList
+                data={filteredPastOrders}
+                keyExtractor={(item) => `order-${item.id}`}
+                ListHeaderComponent={
+                  <>
+                    {/* Search and Filter Bar */}
+                    <View style={{ flexDirection: 'row', gap: 12, marginBottom: 8, paddingHorizontal: 16, paddingTop: 16 }}>
+                      <View 
+                        style={[
+                          { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#f3f4f6', borderRadius: 12, paddingHorizontal: 12, gap: 8 },
+                          Platform.OS === 'web' && { outline: 'none', outlineWidth: 0, outlineStyle: 'none' } as any
+                        ]}
+                      >
+                        <Ionicons name="search" size={20} color="#9ca3af" />
+                        <TextInput
+                          style={[
+                            { flex: 1, paddingVertical: 12, color: '#111827', fontSize: 16, borderWidth: 0 },
+                            Platform.OS === 'web' && { outline: 'none', outlineWidth: 0, outlineStyle: 'none', WebkitAppearance: 'none' } as any
+                          ]}
+                          placeholder="Search orders by ID, address, rider..."
+                          placeholderTextColor="#9ca3af"
+                          value={searchQuery}
+                          onChangeText={setSearchQuery}
+                        />
+                        {searchQuery ? (
+                          <TouchableOpacity onPress={() => setSearchQuery('')}>
+                            <Ionicons name="close-circle" size={18} color="#6b7280" />
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+                      <TouchableOpacity
+                        style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: 12,
+                          backgroundColor: activeFilters.dateRange !== 'all' || activeFilters.status !== 'all' ? '#dc2626' : '#f3f4f6',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderWidth: activeFilters.dateRange !== 'all' || activeFilters.status !== 'all' ? 0 : 1,
+                          borderColor: '#e5e7eb',
+                        }}
+                        onPress={() => setShowFilter(true)}
+                      >
+                        <Ionicons name="filter" size={20} color={activeFilters.dateRange !== 'all' || activeFilters.status !== 'all' ? '#fff' : '#6b7280'} />
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                }
+                ListEmptyComponent={
+                  isHistoryLoading ? (
+                    <View style={{ padding: 16 }}>
+                      <SectionCard>
+                        <Text style={{ color: '#6b7280' }}>Loading history...</Text>
+                      </SectionCard>
+                    </View>
+                  ) : (
+                    <View style={{ padding: 16 }}>
+                      <SectionCard>
+                        <Text style={{ color: '#6b7280' }}>
+                          {searchQuery || activeFilters.dateRange !== 'all' || activeFilters.status !== 'all'
+                            ? 'No orders match your search or filters'
+                            : 'No past orders yet'}
+                        </Text>
+                      </SectionCard>
+                    </View>
+                  )
+                }
+                ListFooterComponent={
+                  isLoadingMore ? (
+                    <View style={{ padding: 16, alignItems: 'center' }}>
+                      <ActivityIndicator size="small" color="#dc2626" />
+                    </View>
+                  ) : null
+                }
+                renderItem={({ item: o }) => (
+                  <View style={{ paddingHorizontal: 16 }}>
+                    <SectionCard>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <View>
                           <Text style={styles.metaLabel}>Order ID</Text>
                           <Text style={styles.orderIdText}>{o.order_number || o.id}</Text>
@@ -2753,7 +3175,7 @@ export default function SugoScreen() {
                         <View style={styles.statusBadge}>
                           <Text style={styles.statusBadgeText}>{(o.status || 'completed').toString().replace('_', ' ')}</Text>
                         </View>
-                        </View>
+                      </View>
 
                       {o.rider_name ? (
                         <View style={styles.riderCard}>
@@ -2771,23 +3193,26 @@ export default function SugoScreen() {
                         </View>
                       ) : null}
 
-                        <View style={styles.rowInline}>
+                      <View style={styles.rowInline}>
                         <View style={styles.dotRed} />
                         <Text style={{ color: '#6b7280' }}>From: <Text style={{ color: '#111827', fontWeight: '600' }}>{o.pickup_address || 'N/A'}</Text></Text>
-                        </View>
-                        <View style={styles.rowInline}>
+                      </View>
+                      <View style={styles.rowInline}>
                         <View style={styles.dotGreen} />
                         <Text style={{ color: '#6b7280' }}>To: <Text style={{ color: '#111827', fontWeight: '600' }}>{o.delivery_address || 'N/A'}</Text></Text>
-                        </View>
-                        <View style={styles.rowInline}>
-                          <Ionicons name="time-outline" size={14} color="#9ca3af" />
+                      </View>
+                      <View style={styles.rowInline}>
+                        <Ionicons name="time-outline" size={14} color="#9ca3af" />
                         <Text style={{ color: '#6b7280' }}>{(o.status || 'delivered').toString().replace('_', ' ')}</Text>
-                        </View>
-                      </SectionCard>
-                    </>
-                  ))
+                      </View>
+                    </SectionCard>
+                  </View>
                 )}
-              </ScrollView>
+                contentContainerStyle={{ gap: 12, paddingBottom: 100 }}
+                onEndReached={loadMoreOrders}
+                onEndReachedThreshold={0.2}
+                removeClippedSubviews={false}
+              />
             </>
           ) : currentScreen === 'profile' ? (
             <>
@@ -3373,14 +3798,14 @@ export default function SugoScreen() {
         />
       </Modal>
 
-      {/* Search Modal */}
-      <Modal visible={showSearch} onClose={() => setShowSearch(false)}>
-        <SearchModal onClose={() => setShowSearch(false)} />
-      </Modal>
-
       {/* Filter Modal */}
       <Modal visible={showFilter} onClose={() => setShowFilter(false)}>
-        <FilterModal onClose={() => setShowFilter(false)} />
+        <FilterModal
+          onClose={() => setShowFilter(false)}
+          onApply={handleFilterApply}
+          onReset={handleResetFilters}
+          currentFilters={activeFilters}
+        />
       </Modal>
 
       {/* Help Modal */}
@@ -3542,7 +3967,7 @@ export default function SugoScreen() {
         </View>
       </Modal>
 
-    
+
       {/* Toast - positioned at top */}
       <Toast message={toastMessage} type={toastType} visible={showToast} onHide={() => setShowToast(false)} />
 

@@ -5,19 +5,19 @@ import { Ionicons } from '@expo/vector-icons';
 type FilterModalProps = {
   onClose: () => void;
   onApply?: (filters: any) => void;
+  onReset?: () => void;
+  currentFilters?: any;
 };
 
-export default function FilterModal({ onClose, onApply }: FilterModalProps) {
+export default function FilterModal({ onClose, onApply, onReset, currentFilters }: FilterModalProps) {
   const [filters, setFilters] = useState({
-    dateRange: 'all',
-    status: 'all',
-    service: 'all',
+    dateRange: currentFilters?.dateRange || 'all',
+    status: currentFilters?.status || 'all',
   });
 
   const filterOptions = {
     dateRange: ['All Time', 'Today', 'This Week', 'This Month'],
     status: ['All', 'Pending', 'In Progress', 'Completed', 'Cancelled'],
-    service: ['All', 'Delivery', 'Plumbing', 'Aircon', 'Electrician'],
   };
 
   return (
@@ -65,29 +65,18 @@ export default function FilterModal({ onClose, onApply }: FilterModalProps) {
             ))}
           </View>
         </View>
-
-        {/* Service Type */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Service Type</Text>
-          <View style={styles.optionsContainer}>
-            {filterOptions.service.map((option, idx) => (
-              <TouchableOpacity
-                key={idx}
-                style={[styles.option, filters.service === option.toLowerCase() && styles.optionActive]}
-                onPress={() => setFilters({ ...filters, service: option.toLowerCase() })}
-              >
-                <Text style={[styles.optionText, filters.service === option.toLowerCase() && styles.optionTextActive]}>
-                  {option}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
       </ScrollView>
 
       {/* Action Buttons */}
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.buttonSecondary} onPress={onClose}>
+        <TouchableOpacity style={styles.buttonSecondary} onPress={() => {
+          const defaultFilters = {
+            dateRange: 'all',
+            status: 'all',
+          };
+          setFilters(defaultFilters);
+          onReset?.();
+        }}>
           <Text style={styles.buttonTextSecondary}>Reset</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.buttonPrimary} onPress={() => {
