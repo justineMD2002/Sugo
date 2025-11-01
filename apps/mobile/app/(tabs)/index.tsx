@@ -22,9 +22,10 @@ import { supabase } from '@/lib/supabase';
 import { useOrderRealtime } from '@/hooks/use-order-realtime';
 import { notifyRiderAccepted, notifyNewMessage, notifyOrderStatusChanged, getUserNotifications, getUnreadNotificationCount, markAllNotificationsAsRead } from '@/lib/notificationService';
 import { RatingService } from '@/services/rating.service';
+import { EarningsService, EarningsSummary, DailyEarnings, RiderStats } from '@/services/earnings.service';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { Alert, ScrollView, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View, Linking, Platform, ActivityIndicator, Image } from 'react-native';
+import { Alert, ScrollView, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View, Linking, Platform, ActivityIndicator, Image, RefreshControl } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type Screen = 'splash' | 'login' | 'signup' | 'password' | 'otp' | 'home' | 'orders' | 'profile' | 'deliveries' | 'earnings';
@@ -114,6 +115,13 @@ export default function SugoScreen() {
   const [isBookingDelivery, setIsBookingDelivery] = useState(false);
   const [showProfilePictureModal, setShowProfilePictureModal] = useState(false);
 
+  // Earnings state
+  const [earningsSummary, setEarningsSummary] = useState<EarningsSummary | null>(null);
+  const [dailyEarnings, setDailyEarnings] = useState<DailyEarnings[]>([]);
+  const [isEarningsLoading, setIsEarningsLoading] = useState(false);
+  const [riderStats, setRiderStats] = useState<RiderStats | null>(null);
+  const [isStatsLoading, setIsStatsLoading] = useState(false);
+
   // Address CRUD state
   const [showAddAddress, setShowAddAddress] = useState(false);
   const [showEditAddress, setShowEditAddress] = useState(false);
@@ -142,6 +150,7 @@ export default function SugoScreen() {
   const [loginPhoneNumber, setLoginPhoneNumber] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [emailNotConfirmed, setEmailNotConfirmed] = useState(false);
+  const [loginError, setLoginError] = useState('');
 
   // Signup form states
   const [signupFullName, setSignupFullName] = useState('');
@@ -914,7 +923,13 @@ export default function SugoScreen() {
 
       return () => clearTimeout(timeoutId);
     }
-  }, [currentScreen, userType, currentUser, searchQuery, activeFilters]);
+    if (currentScreen === 'earnings' && userType === 'rider') {
+      loadEarnings();
+    }
+    if (currentScreen === 'profile' && userType === 'rider') {
+      loadRiderStats();
+    }
+  }, [currentScreen, userType, currentUser?.id, searchQuery, activeFilters]);
 
   // Load more orders
   const loadMoreOrders = useCallback(() => {
@@ -959,6 +974,56 @@ export default function SugoScreen() {
   };
 
 
+  // Load earnings data for riders
+  const loadEarnings = async () => {
+    if (!currentUser?.id) return;
+    setIsEarningsLoading(true);
+    try {
+      // Fetch earnings summary
+      const summaryResult = await EarningsService.getEarningsSummary(currentUser.id);
+      if (summaryResult.success && summaryResult.data) {
+        setEarningsSummary(summaryResult.data);
+      } else {
+        console.error('Error loading earnings summary:', summaryResult.error);
+        setEarningsSummary(null);
+      }
+
+      // Fetch daily earnings for the past 7 days
+      const dailyResult = await EarningsService.getDailyEarnings(currentUser.id, 7);
+      if (dailyResult.success && dailyResult.data) {
+        setDailyEarnings(dailyResult.data);
+      } else {
+        console.error('Error loading daily earnings:', dailyResult.error);
+        setDailyEarnings([]);
+      }
+    } catch (e) {
+      console.error('Unexpected error loading earnings:', e);
+      setEarningsSummary(null);
+      setDailyEarnings([]);
+    } finally {
+      setIsEarningsLoading(false);
+    }
+  };
+
+  // Load rider stats for profile
+  const loadRiderStats = async () => {
+    if (!currentUser?.id) return;
+    setIsStatsLoading(true);
+    try {
+      const statsResult = await EarningsService.getRiderStats(currentUser.id);
+      if (statsResult.success && statsResult.data) {
+        setRiderStats(statsResult.data);
+      } else {
+        console.error('Error loading rider stats:', statsResult.error);
+        setRiderStats(null);
+      }
+    } catch (e) {
+      console.error('Unexpected error loading rider stats:', e);
+      setRiderStats(null);
+    } finally {
+      setIsStatsLoading(false);
+    }
+  };
 
   // Accept order as a rider
   const acceptOrder = async (order: any) => {
@@ -1832,6 +1897,9 @@ export default function SugoScreen() {
   };
 
   const handleLogin = async () => {
+    // Clear any previous login errors
+    setLoginError('');
+
     // Validate form fields
     if (!loginPhoneNumber.trim()) {
       showToastMessage('Please enter your phone number', 'error');
@@ -1870,13 +1938,24 @@ export default function SugoScreen() {
 
         console.log('Fetched user profile:', userProfile);
         console.log('User type from database:', userProfile.user_type);
-        console.log('Setting userType to:', userProfile.user_type);
+        console.log('Selected user type:', userType);
+
+        // Validate that the selected user type matches the database user type
+        if (userProfile.user_type !== userType) {
+          console.error('User type mismatch:', { selected: userType, actual: userProfile.user_type });
+
+          const userTypeText = userType === 'customer' ? 'Customer' : 'Worker';
+          const actualUserTypeText = userProfile.user_type === 'customer' ? 'Customer' : 'Worker';
+
+          setLoginError(`No ${userTypeText} account found. This account is registered as a ${actualUserTypeText}.`);
+          return;
+        }
+
+        console.log('User type validation passed! Navigating to home...');
 
         // Now set all state together - React will batch these updates
         setCurrentUser(result.user);
-        setUserType(userProfile.user_type as UserType);
-
-        console.log('User type set! Navigating to home...');
+        // Note: We don't need to setUserType since it's already correctly set from the selected tab
 
         // Clear form fields
         setLoginPhoneNumber('');
@@ -2362,7 +2441,10 @@ export default function SugoScreen() {
                 placeholderTextColor="#9ca3af"
                 style={styles.input}
                 value={loginPhoneNumber}
-                onChangeText={setLoginPhoneNumber}
+                onChangeText={(text) => {
+                  setLoginPhoneNumber(text);
+                  setLoginError('');
+                }}
                 keyboardType="phone-pad"
                 editable={!isLoading}
               />
@@ -2372,7 +2454,10 @@ export default function SugoScreen() {
                 secureTextEntry
                 style={styles.input}
                 value={loginPassword}
-                onChangeText={setLoginPassword}
+                onChangeText={(text) => {
+                  setLoginPassword(text);
+                  setLoginError('');
+                }}
                 editable={!isLoading}
               />
               {emailNotConfirmed && (
@@ -2394,19 +2479,30 @@ export default function SugoScreen() {
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, opacity: isLoading ? 0.4 : 1 }}>
               <TouchableOpacity
                 style={[styles.segment, userType === 'customer' ? styles.segmentActive : undefined]}
-                onPress={() => setUserType('customer')}
+                onPress={() => {
+                  setUserType('customer');
+                  setLoginError('');
+                }}
                 disabled={isLoading}
               >
                 <Text style={[styles.segmentText, userType === 'customer' ? styles.segmentTextActive : undefined]}>Customer</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.segment, userType === 'rider' ? styles.segmentActive : undefined]}
-                onPress={() => setUserType('rider')}
+                onPress={() => {
+                  setUserType('rider');
+                  setLoginError('');
+                }}
                 disabled={isLoading}
               >
                 <Text style={[styles.segmentText, userType === 'rider' ? styles.segmentTextActive : undefined]}>Worker</Text>
               </TouchableOpacity>
             </View>
+            {loginError ? (
+              <Text style={{ fontSize: 12, color: '#dc2626', marginTop: 4, fontWeight: '500' }}>
+                {loginError}
+              </Text>
+            ) : null}
             {userType === 'rider' && (
               <View style={{ gap: 8, opacity: isLoading ? 0.4 : 1 }}>
                 <Text style={{ fontSize: 12, color: '#6b7280', fontWeight: '600' }}>Select your service</Text>
@@ -2828,36 +2924,81 @@ export default function SugoScreen() {
           ) : currentScreen === 'earnings' ? (
             <>
               <Header title="Earnings" />
-              <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
-                <SectionCard>
-                  <Text style={{ color: '#6b7280', marginBottom: 4 }}>Total Earnings Today</Text>
-                  <Text style={{ fontSize: 32, fontWeight: '800' }}>₱1,240.00</Text>
-                </SectionCard>
-                {[{ date: 'Today', deliveries: 12, amount: '₱1,240' }, { date: 'Yesterday', deliveries: 15, amount: '₱1,680' }].map((d, idx) => (
-                  <SectionCard key={idx}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                      <View>
-                        <Text style={{ fontWeight: '600' }}>{d.date}</Text>
-                        <Text style={{ color: '#6b7280', fontSize: 12 }}>{d.deliveries} deliveries</Text>
-                      </View>
-                      <Text style={{ fontWeight: '800', color: '#dc2626' }}>{d.amount}</Text>
-                    </View>
+              <ScrollView 
+                contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={isEarningsLoading}
+                    onRefresh={loadEarnings}
+                    colors={['#dc2626']}
+                    tintColor="#dc2626"
+                  />
+                }
+              >
+                {isEarningsLoading && dailyEarnings.length === 0 ? (
+                  <SectionCard>
+                    <Text style={{ color: '#6b7280', textAlign: 'center' }}>Loading earnings...</Text>
                   </SectionCard>
-                ))}
-                <TouchableOpacity style={styles.primaryBtn}>
-                  <Text style={styles.primaryText}>Cash Out Earnings</Text>
-                </TouchableOpacity>
+                ) : (
+                  <>
+                    <SectionCard>
+                      <Text style={{ color: '#6b7280', marginBottom: 4 }}>Total Earnings Today</Text>
+                      <Text style={{ fontSize: 32, fontWeight: '800' }}>₱{(earningsSummary?.totalEarningsToday || 0).toFixed(2)}</Text>
+                      <Text style={{ color: '#6b7280', fontSize: 12, marginTop: 4 }}>
+                        {earningsSummary?.totalDeliveriesToday || 0} deliveries
+                      </Text>
+                    </SectionCard>
+                    
+                    {dailyEarnings.map((d, idx) => (
+                      <SectionCard key={idx}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <View>
+                            <Text style={{ fontWeight: '600' }}>{d.displayDate}</Text>
+                            <Text style={{ color: '#6b7280', fontSize: 12 }}>{d.deliveries} deliveries</Text>
+                          </View>
+                          <Text style={{ fontWeight: '800', color: '#dc2626' }}>₱{d.amount.toFixed(2)}</Text>
+                        </View>
+                      </SectionCard>
+                    ))}
+
+                    {dailyEarnings.length === 0 && (
+                      <SectionCard>
+                        <Text style={{ color: '#6b7280', textAlign: 'center' }}>No earnings data available</Text>
+                      </SectionCard>
+                    )}
+                  </>
+                )}
               </ScrollView>
             </>
           ) : currentScreen === 'profile' ? (
             <>
               <Header title={currentUser?.user_metadata?.full_name || "Rider Profile"} subtitle={currentUser?.phone || currentUser?.email || ""} />
-              <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
+              <ScrollView 
+                contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={isStatsLoading}
+                    onRefresh={loadRiderStats}
+                    colors={['#dc2626']}
+                    tintColor="#dc2626"
+                  />
+                }
+              >
                 <SectionCard title="Rider Stats">
-                  <View style={{ flexDirection: 'row', gap: 12 }}>
-                    <Stat value="487" label="Total Deliveries" />
-                    <Stat value="98%" label="Success Rate" />
-                  </View>
+                  {isStatsLoading && !riderStats ? (
+                    <Text style={{ color: '#6b7280', textAlign: 'center' }}>Loading stats...</Text>
+                  ) : (
+                    <View style={{ flexDirection: 'row', gap: 12 }}>
+                      <Stat 
+                        value={riderStats?.totalDeliveries?.toString() || "0"} 
+                        label="Total Deliveries" 
+                      />
+                      <Stat 
+                        value={`${riderStats?.successRate?.toFixed(0) || "0"}%`} 
+                        label="Success Rate" 
+                      />
+                    </View>
+                  )}
                 </SectionCard>
                 <SectionCard title="Personal Information">
                   <Row label="Name" value={currentUser?.user_metadata?.full_name || "N/A"} />
