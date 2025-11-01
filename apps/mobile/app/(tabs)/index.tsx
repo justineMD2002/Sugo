@@ -126,6 +126,7 @@ export default function SugoScreen() {
   const [loginPhoneNumber, setLoginPhoneNumber] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [emailNotConfirmed, setEmailNotConfirmed] = useState(false);
+  const [loginError, setLoginError] = useState('');
 
   // Signup form states
   const [signupFullName, setSignupFullName] = useState('');
@@ -1511,6 +1512,9 @@ export default function SugoScreen() {
   };
 
   const handleLogin = async () => {
+    // Clear any previous login errors
+    setLoginError('');
+
     // Validate form fields
     if (!loginPhoneNumber.trim()) {
       showToastMessage('Please enter your phone number', 'error');
@@ -1549,13 +1553,24 @@ export default function SugoScreen() {
 
         console.log('Fetched user profile:', userProfile);
         console.log('User type from database:', userProfile.user_type);
-        console.log('Setting userType to:', userProfile.user_type);
+        console.log('Selected user type:', userType);
+
+        // Validate that the selected user type matches the database user type
+        if (userProfile.user_type !== userType) {
+          console.error('User type mismatch:', { selected: userType, actual: userProfile.user_type });
+
+          const userTypeText = userType === 'customer' ? 'Customer' : 'Worker';
+          const actualUserTypeText = userProfile.user_type === 'customer' ? 'Customer' : 'Worker';
+
+          setLoginError(`No ${userTypeText} account found. This account is registered as a ${actualUserTypeText}.`);
+          return;
+        }
+
+        console.log('User type validation passed! Navigating to home...');
 
         // Now set all state together - React will batch these updates
         setCurrentUser(result.user);
-        setUserType(userProfile.user_type as UserType);
-
-        console.log('User type set! Navigating to home...');
+        // Note: We don't need to setUserType since it's already correctly set from the selected tab
 
         // Clear form fields
         setLoginPhoneNumber('');
@@ -2039,7 +2054,10 @@ export default function SugoScreen() {
                 placeholderTextColor="#9ca3af"
                 style={styles.input}
                 value={loginPhoneNumber}
-                onChangeText={setLoginPhoneNumber}
+                onChangeText={(text) => {
+                  setLoginPhoneNumber(text);
+                  setLoginError('');
+                }}
                 keyboardType="phone-pad"
                 editable={!isLoading}
               />
@@ -2049,7 +2067,10 @@ export default function SugoScreen() {
                 secureTextEntry
                 style={styles.input}
                 value={loginPassword}
-                onChangeText={setLoginPassword}
+                onChangeText={(text) => {
+                  setLoginPassword(text);
+                  setLoginError('');
+                }}
                 editable={!isLoading}
               />
               {emailNotConfirmed && (
@@ -2071,19 +2092,30 @@ export default function SugoScreen() {
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, opacity: isLoading ? 0.4 : 1 }}>
               <TouchableOpacity
                 style={[styles.segment, userType === 'customer' ? styles.segmentActive : undefined]}
-                onPress={() => setUserType('customer')}
+                onPress={() => {
+                  setUserType('customer');
+                  setLoginError('');
+                }}
                 disabled={isLoading}
               >
                 <Text style={[styles.segmentText, userType === 'customer' ? styles.segmentTextActive : undefined]}>Customer</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.segment, userType === 'rider' ? styles.segmentActive : undefined]}
-                onPress={() => setUserType('rider')}
+                onPress={() => {
+                  setUserType('rider');
+                  setLoginError('');
+                }}
                 disabled={isLoading}
               >
                 <Text style={[styles.segmentText, userType === 'rider' ? styles.segmentTextActive : undefined]}>Worker</Text>
               </TouchableOpacity>
             </View>
+            {loginError ? (
+              <Text style={{ fontSize: 12, color: '#dc2626', marginTop: 4, fontWeight: '500' }}>
+                {loginError}
+              </Text>
+            ) : null}
             {userType === 'rider' && (
               <View style={{ gap: 8, opacity: isLoading ? 0.4 : 1 }}>
                 <Text style={{ fontSize: 12, color: '#6b7280', fontWeight: '600' }}>Select your service</Text>
