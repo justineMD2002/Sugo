@@ -209,11 +209,12 @@ export class EarningsService {
    */
   static async getRiderStats(riderId: string): Promise<ApiResponse<RiderStats>> {
     try {
-      // Get all deliveries for the rider
+      // Get all deliveries for the rider (matching past deliveries filter)
       const { data: deliveries, error: deliveriesError } = await supabase
         .from('deliveries')
-        .select('status, earnings')
-        .eq('rider_id', riderId);
+        .select('status, earnings, is_completed')
+        .eq('rider_id', riderId)
+        .or('is_completed.eq.true,status.eq.completed');
 
       if (deliveriesError) throw deliveriesError;
 
@@ -235,7 +236,7 @@ export class EarningsService {
         .reduce((sum, d) => sum + (d.earnings || 0), 0) || 0;
 
       const stats: RiderStats = {
-        totalDeliveries: userData?.total_orders || totalDeliveries,
+        totalDeliveries: totalDeliveries,
         completedDeliveries,
         cancelledDeliveries,
         successRate,
