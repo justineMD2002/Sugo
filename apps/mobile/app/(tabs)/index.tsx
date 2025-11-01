@@ -21,7 +21,7 @@ import { uploadProfilePicture } from '@/lib/profilePictureService';
 import { supabase } from '@/lib/supabase';
 import { useOrderRealtime } from '@/hooks/use-order-realtime';
 import { notifyRiderAccepted, notifyNewMessage, notifyOrderStatusChanged, getUserNotifications, getUnreadNotificationCount, markAllNotificationsAsRead } from '@/lib/notificationService';
-import { EarningsService, EarningsSummary, DailyEarnings } from '@/services/earnings.service';
+import { EarningsService, EarningsSummary, DailyEarnings, RiderStats } from '@/services/earnings.service';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Linking, Platform, RefreshControl } from 'react-native';
@@ -103,6 +103,8 @@ export default function SugoScreen() {
   const [earningsSummary, setEarningsSummary] = useState<EarningsSummary | null>(null);
   const [dailyEarnings, setDailyEarnings] = useState<DailyEarnings[]>([]);
   const [isEarningsLoading, setIsEarningsLoading] = useState(false);
+  const [riderStats, setRiderStats] = useState<RiderStats | null>(null);
+  const [isStatsLoading, setIsStatsLoading] = useState(false);
 
   // Address CRUD state
   const [showAddAddress, setShowAddAddress] = useState(false);
@@ -658,6 +660,9 @@ export default function SugoScreen() {
     if (currentScreen === 'earnings' && userType === 'rider') {
       loadEarnings();
     }
+    if (currentScreen === 'profile' && userType === 'rider') {
+      loadRiderStats();
+    }
   }, [currentScreen, userType, currentUser?.id]);
 
   // Load earnings data for riders
@@ -688,6 +693,26 @@ export default function SugoScreen() {
       setDailyEarnings([]);
     } finally {
       setIsEarningsLoading(false);
+    }
+  };
+
+  // Load rider stats for profile
+  const loadRiderStats = async () => {
+    if (!currentUser?.id) return;
+    setIsStatsLoading(true);
+    try {
+      const statsResult = await EarningsService.getRiderStats(currentUser.id);
+      if (statsResult.success && statsResult.data) {
+        setRiderStats(statsResult.data);
+      } else {
+        console.error('Error loading rider stats:', statsResult.error);
+        setRiderStats(null);
+      }
+    } catch (e) {
+      console.error('Unexpected error loading rider stats:', e);
+      setRiderStats(null);
+    } finally {
+      setIsStatsLoading(false);
     }
   };
 
@@ -2550,12 +2575,32 @@ export default function SugoScreen() {
           ) : currentScreen === 'profile' ? (
             <>
               <Header title={currentUser?.user_metadata?.full_name || "Rider Profile"} subtitle={currentUser?.phone || currentUser?.email || ""} />
-              <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
+              <ScrollView 
+                contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={isStatsLoading}
+                    onRefresh={loadRiderStats}
+                    colors={['#dc2626']}
+                    tintColor="#dc2626"
+                  />
+                }
+              >
                 <SectionCard title="Rider Stats">
-                  <View style={{ flexDirection: 'row', gap: 12 }}>
-                    <Stat value="487" label="Total Deliveries" />
-                    <Stat value="98%" label="Success Rate" />
-                  </View>
+                  {isStatsLoading && !riderStats ? (
+                    <Text style={{ color: '#6b7280', textAlign: 'center' }}>Loading stats...</Text>
+                  ) : (
+                    <View style={{ flexDirection: 'row', gap: 12 }}>
+                      <Stat 
+                        value={riderStats?.totalDeliveries?.toString() || "0"} 
+                        label="Total Deliveries" 
+                      />
+                      <Stat 
+                        value={`${riderStats?.successRate?.toFixed(0) || "0"}%`} 
+                        label="Success Rate" 
+                      />
+                    </View>
+                  )}
                 </SectionCard>
                 <SectionCard title="Personal Information">
                   <Row label="Name" value={currentUser?.user_metadata?.full_name || "N/A"} />

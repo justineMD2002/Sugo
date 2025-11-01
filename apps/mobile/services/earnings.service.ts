@@ -17,6 +17,15 @@ export interface DailyEarnings {
   amount: number;
 }
 
+export interface RiderStats {
+  totalDeliveries: number;
+  completedDeliveries: number;
+  cancelledDeliveries: number;
+  successRate: number;
+  averageRating: number;
+  totalEarnings: number;
+}
+
 /**
  * Earnings service for managing rider earnings operations
  */
@@ -191,6 +200,55 @@ export class EarningsService {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to fetch total earnings',
+      };
+    }
+  }
+
+  /**
+   * Get comprehensive rider statistics
+   */
+  static async getRiderStats(riderId: string): Promise<ApiResponse<RiderStats>> {
+    try {
+      // Get all deliveries for the rider
+      const { data: deliveries, error: deliveriesError } = await supabase
+        .from('deliveries')
+        .select('status, earnings')
+        .eq('rider_id', riderId);
+
+      if (deliveriesError) throw deliveriesError;
+
+      // Get rider rating from users table
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('rating, total_orders')
+        .eq('id', riderId)
+        .single();
+
+      if (userError) throw userError;
+
+      // Calculate statistics
+      const totalDeliveries = deliveries?.length || 0;
+      const completedDeliveries = deliveries?.filter(d => d.status === 'completed').length || 0;
+      const cancelledDeliveries = deliveries?.filter(d => d.status === 'cancelled').length || 0;
+      const successRate = totalDeliveries > 0 ? (completedDeliveries / totalDeliveries) * 100 : 0;
+      const totalEarnings = deliveries?.filter(d => d.status === 'completed')
+        .reduce((sum, d) => sum + (d.earnings || 0), 0) || 0;
+
+      const stats: RiderStats = {
+        totalDeliveries: userData?.total_orders || totalDeliveries,
+        completedDeliveries,
+        cancelledDeliveries,
+        successRate,
+        averageRating: userData?.rating || 0,
+        totalEarnings,
+      };
+
+      return { success: true, data: stats };
+    } catch (error) {
+      console.error('Error fetching rider stats:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch rider stats',
       };
     }
   }
