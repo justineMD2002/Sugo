@@ -13,10 +13,9 @@ import {
   useReactTable,
   VisibilityState,
 } from "@tanstack/react-table"
-import { ArrowUpDown, ChevronDown, Eye, Loader2 } from "lucide-react"
+import { ChevronDown, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -62,6 +61,8 @@ interface RidersTableProps {
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
   onSearch?: (query: string) => void
+  onStatusFilter?: (status: string | undefined) => void
+  statusFilter?: string | undefined
   isRefreshing?: boolean
 }
 
@@ -86,7 +87,7 @@ const createColumns = (
           </div>
           <div>
             <div className="font-medium text-sm">{rider.rider}</div>
-            <div className="text-xs text-muted-foreground">{rider.id}</div>
+            {/* <div className="text-xs text-muted-foreground">{rider.id}</div> */}
           </div>
         </div>
       )
@@ -183,6 +184,8 @@ export function RidersTable({
     onPageChange,
     onPageSizeChange,
     onSearch,
+    onStatusFilter,
+    statusFilter,
     isRefreshing
 }: RidersTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([])
@@ -228,6 +231,28 @@ export function RidersTable({
           onChange={(event) => setSearchValue(event.target.value)}
           className="max-w-sm"
         />
+        <Select
+          value={statusFilter ?? "all"}
+          onValueChange={(value) => {
+            if (value === "all") {
+              table.getColumn("status")?.setFilterValue(undefined)
+              onStatusFilter?.(undefined)
+            } else {
+              table.getColumn("status")?.setFilterValue(value)
+              onStatusFilter?.(value)
+            }
+          }}
+        >
+          <SelectTrigger className="w-[140px]">
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="online">Online</SelectItem>
+            <SelectItem value="busy">Busy</SelectItem>
+            <SelectItem value="offline">Offline</SelectItem>
+          </SelectContent>
+        </Select>
         {isRefreshing && (
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         )}
@@ -312,8 +337,7 @@ export function RidersTable({
       </div>
       <div className="flex items-center justify-between px-4 py-4">
         <div className="text-muted-foreground text-sm">
-          {table.getFilteredSelectedRowModel().rows.length} of{" "}
-          {table.getFilteredRowModel().rows.length} row(s) selected.
+          Showing {table.getFilteredRowModel().rows.length} of {totalCount} row(s)
         </div>
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-2">

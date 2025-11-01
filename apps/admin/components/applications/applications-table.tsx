@@ -64,6 +64,8 @@ interface ApplicationsTableProps {
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
   onSearch?: (query: string) => void
+  onStatusFilter?: (status: string | undefined) => void
+  statusFilter?: string | undefined
   isRefreshing?: boolean
 }
 
@@ -84,7 +86,7 @@ const createColumns = (
           </div>
           <div>
             <div className="font-medium text-sm">{applicant.applicant}</div>
-            <div className="text-xs text-muted-foreground">{applicant.id}</div>
+            {/* <div className="text-xs text-muted-foreground">{applicant.id}</div> */}
           </div>
         </div>
       )
@@ -105,16 +107,16 @@ const createColumns = (
     },
     size: 180,
   },
-  {
-    accessorKey: "address",
-    header: "Address",
-    cell: ({ row }) => (
-      <div className="text-sm text-muted-foreground max-w-xs truncate" title={row.getValue("address")}>
-        {row.getValue("address")}
-      </div>
-    ),
-    size: 200,
-  },
+  // {
+  //   accessorKey: "address",
+  //   header: "Address",
+  //   cell: ({ row }) => (
+  //     <div className="text-sm text-muted-foreground max-w-xs truncate" title={row.getValue("address")}>
+  //       {row.getValue("address")}
+  //     </div>
+  //   ),
+  //   size: 200,
+  // },
   {
     accessorKey: "vehicle",
     header: "Vehicle",
@@ -187,20 +189,20 @@ const createColumns = (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={(e) => handleApprove(e)}
-                className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
-                title="Approve application"
-              >
-                <Check className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
                 onClick={(e) => handleReject(e)}
                 className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                 title="Reject application"
               >
                 <X className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => handleApprove(e)}
+                className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                title="Approve application"
+              >
+                <Check className="h-4 w-4" />
               </Button>
             </>
           )}
@@ -222,6 +224,8 @@ export function ApplicationsTable({
   onPageChange,
   onPageSizeChange,
   onSearch,
+  onStatusFilter,
+  statusFilter,
   isRefreshing
 }: ApplicationsTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([])
@@ -267,6 +271,30 @@ export function ApplicationsTable({
           onChange={(event) => setSearchValue(event.target.value)}
           className="max-w-sm"
         />
+        <Select
+          value={statusFilter ?? "all"}
+          onValueChange={(value) => {
+            if (value === "all") {
+              // Clear both the table filter and parent state
+              table.getColumn("status")?.setFilterValue(undefined)
+              onStatusFilter?.(undefined)
+            } else {
+              // Set the table filter and parent state
+              table.getColumn("status")?.setFilterValue(value)
+              onStatusFilter?.(value)
+            }
+          }}
+        >
+          <SelectTrigger className="w-[140px]">
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="approved">Approved</SelectItem>
+            <SelectItem value="rejected">Rejected</SelectItem>
+          </SelectContent>
+        </Select>
         {isRefreshing && (
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         )}
@@ -351,8 +379,7 @@ export function ApplicationsTable({
       </div>
       <div className="flex items-center justify-between px-4 py-4">
         <div className="text-muted-foreground text-sm">
-          {table.getFilteredSelectedRowModel().rows.length} of{" "}
-          {table.getFilteredRowModel().rows.length} row(s) selected.
+          Showing {table.getFilteredRowModel().rows.length} of {totalCount} row(s)
         </div>
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-2">

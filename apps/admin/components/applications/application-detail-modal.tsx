@@ -18,19 +18,7 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-
-interface Application {
-  id: string
-  applicant: string
-  contact: string
-  address: string
-  vehicle: string
-  plateNumber: string
-  appliedDate: string
-  status: "pending" | "approved" | "rejected"
-  email: string
-}
+import type { Application } from "@/lib/api/applications"
 
 interface ApplicationDetailModalProps {
   isOpen: boolean
@@ -57,30 +45,13 @@ export function ApplicationDetailModal({
     })
   }
 
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case "pending":
-        return "secondary"
-      case "approved":
-        return "default"
-      case "rejected":
-        return "destructive"
-      default:
-        return "secondary"
-    }
-  }
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case "pending":
-        return "Pending"
-      case "approved":
-        return "Approved"
-      case "rejected":
-        return "Rejected"
-      default:
-        return status
-    }
+  const getStatusConfig = (status: string) => {
+    const config = {
+      pending: { label: "Pending", className: "text-yellow-600 bg-yellow-50" },
+      approved: { label: "Approved", className: "text-green-600 bg-green-50" },
+      rejected: { label: "Rejected", className: "text-red-600 bg-red-50" },
+    }[status] || { label: status, className: "text-gray-600 bg-gray-50" }
+    return config
   }
 
   const isProcessed = application.status === "approved" || application.status === "rejected"
@@ -91,15 +62,15 @@ export function ApplicationDetailModal({
         <DialogHeader className="flex flex-row items-start justify-between">
           <div>
             <DialogTitle className="text-2xl font-bold">{application.applicant}</DialogTitle>
-            <p className="text-sm text-muted-foreground mt-1">{application.id}</p>
+            {/* <p className="text-sm text-muted-foreground mt-1">{application.id}</p> */}
           </div>
           <Button
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="h-10 w-10 text-muted-foreground hover:text-foreground"
+            className="h-9 w-9 text-muted-foreground hover:text-foreground"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </Button>
         </DialogHeader>
 
@@ -112,9 +83,9 @@ export function ApplicationDetailModal({
               </AvatarFallback>
             </Avatar>
           </div>
-          <Badge variant={getStatusVariant(application.status)} className="w-fit mx-auto">
-            {getStatusLabel(application.status)}
-          </Badge>
+          <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusConfig(application.status).className} w-fit mx-auto`}>
+            {getStatusConfig(application.status).label}
+          </div>
         </div>
 
         <div className="space-y-6">
@@ -123,53 +94,53 @@ export function ApplicationDetailModal({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <div className="flex items-start space-x-3">
-                  <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
-                  <div>
+                  <Phone className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-muted-foreground">Phone Number</p>
-                    <p className="text-sm font-semibold">{application.contact}</p>
+                    <p className="text-sm font-semibold break-words">{application.contact}</p>
                   </div>
                 </div>
 
                 <div className="flex items-start space-x-3">
-                  <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Address</p>
-                    <p className="text-sm font-semibold">{application.address}</p>
+                  <Car className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-muted-foreground">Vehicle Type</p>
+                    <p className="text-sm font-semibold break-words">{application.vehicle}</p>
                   </div>
                 </div>
 
                 <div className="flex items-start space-x-3">
-                  <Car className="h-5 w-5 text-muted-foreground mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Plate Number</p>
-                    <p className="text-sm font-semibold">{application.plateNumber}</p>
+                  <Calendar className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-muted-foreground">Applied Date</p>
+                    <p className="text-sm font-semibold break-words">{formatDate(application.appliedDate)}</p>
                   </div>
                 </div>
               </div>
 
               <div className="space-y-4">
                 <div className="flex items-start space-x-3">
-                  <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
-                  <div>
+                  <Mail className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-muted-foreground">Email</p>
-                    <p className="text-sm font-semibold">{application.email}</p>
+                    <p className="text-sm font-semibold break-all">{application.email}</p>
                   </div>
                 </div>
 
                 <div className="flex items-start space-x-3">
-                  <Car className="h-5 w-5 text-muted-foreground mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Vehicle Type</p>
-                    <p className="text-sm font-semibold">{application.vehicle}</p>
+                  <Car className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-muted-foreground">Plate Number</p>
+                    <p className="text-sm font-semibold break-words">{application.plateNumber}</p>
                   </div>
                 </div>
 
                 <div className="flex items-start space-x-3">
-                  <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
+                  {/* <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Applied Date</p>
                     <p className="text-sm font-semibold">{formatDate(application.appliedDate)}</p>
-                  </div>
+                  </div> */}
                 </div>
               </div>
             </div>
@@ -177,7 +148,15 @@ export function ApplicationDetailModal({
             </Card>
 
             {!isProcessed && (
-              <div className="flex justify-end space-x-3 pt-4">
+              <div className="flex justify-end space-x-3">
+                 <div className="flex justify-end">
+            <Button
+              variant="outline"
+              onClick={onClose}
+            >
+              Close
+            </Button>
+          </div>
                 <Button
                   variant="outline"
                   onClick={() => onReject(application)}

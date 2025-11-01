@@ -13,10 +13,9 @@ import {
   useReactTable,
   VisibilityState,
 } from "@tanstack/react-table"
-import { ArrowUpDown, ChevronDown, Eye, Loader2 } from "lucide-react"
+import { ChevronDown, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -80,7 +79,7 @@ const createColumns = (
           </div>
           <div>
             <div className="font-medium text-sm">{customer.customer}</div>
-            <div className="text-xs text-muted-foreground">{customer.id}</div>
+            {/* <div className="text-xs text-muted-foreground">{customer.id}</div> */}
           </div>
         </div>
       )
@@ -258,8 +257,7 @@ export function CustomersTable({
       </div>
       <div className="flex items-center justify-between px-4 py-4">
         <div className="text-muted-foreground text-sm">
-          {table.getFilteredSelectedRowModel().rows.length} of{" "}
-          {table.getFilteredRowModel().rows.length} row(s) selected.
+          Showing {table.getFilteredRowModel().rows.length} of {totalCount} row(s)
         </div>
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-2">

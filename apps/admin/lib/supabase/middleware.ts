@@ -46,10 +46,18 @@ export async function updateSession(request: NextRequest) {
   // with the Supabase client, your users may be randomly logged out.
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims;
+  // Get user ID from JWT claims (sub is the standard claim for user ID)
+  let userId = user?.sub || user?.id;
+  
+  // Fallback: if we don't have userId from claims, try getUser()
+  if (!userId) {
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    userId = authUser?.id;
+  }
 
   // Define protected admin routes
   const protectedRoutes = [
-    "/dashboard",
+    "/",
     "/orders",
     "/applications", 
     "/riders",
@@ -73,6 +81,33 @@ export async function updateSession(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
       return NextResponse.redirect(url);
+    }
+  }
+
+  // Verify admin access for protected routes
+  if (isProtectedRoute && userId) {
+    const { data: userProfile, error: profileError } = await supabase
+      .from("users")
+      .select("user_type")
+      .eq("id", userId)
+      .single();
+
+    // If we can't fetch profile or user is not admin, deny access
+    if (profileError || userProfile?.user_type !== "admin") {
+      // Sign out the user
+      await supabase.auth.signOut();
+      
+      // Redirect to login with error message
+      // Make sure to copy cookies from supabaseResponse to include signOut cookies
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("error", "admin_required");
+      const redirectResponse = NextResponse.redirect(url);
+      // Copy cookies from supabaseResponse to include any signOut cookie updates
+      supabaseResponse.cookies.getAll().forEach((cookie) => {
+        redirectResponse.cookies.set(cookie.name, cookie.value, cookie);
+      });
+      return redirectResponse;
     }
   }
 

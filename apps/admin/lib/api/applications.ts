@@ -36,14 +36,18 @@ export async function getApplicationsWithDetails(
   const supabase = createClient()
   const offset = (page - 1) * limit
 
-  // First, get all applications (rider_profiles with status = 'pending')
+  // First, get all applications (rider_profiles)
   let applicationsQuery = supabase
     .from("rider_profiles")
     .select(`
       *,
       user:users!rider_profiles_user_id_fkey(*)
     `, { count: "exact" })
-    .eq("status", "pending")
+
+  // Apply status filter
+  if (filters.status) {
+    applicationsQuery = applicationsQuery.eq("status", filters.status)
+  }
 
   // Apply search filter
   if (filters.search) {
@@ -51,18 +55,6 @@ export async function getApplicationsWithDetails(
     applicationsQuery = applicationsQuery.or(
       `plate_number.ilike.%${searchTerm}%,vehicle_brand.ilike.%${searchTerm}%,vehicle_model.ilike.%${searchTerm}%`
     )
-  }
-
-  // Apply status filter (only pending applications are shown)
-  if (filters.status && filters.status !== "pending") {
-    // If filtering for non-pending status, return empty results
-    return {
-      data: [],
-      count: 0,
-      page,
-      limit,
-      totalPages: 0
-    }
   }
 
   // Apply sorting
@@ -104,7 +96,7 @@ export async function getApplicationsWithDetails(
       vehicle: vehicleName,
       plateNumber: app.plate_number || "N/A",
       appliedDate: app.created_at,
-      status: "pending",
+      status: app.status as "pending" | "approved" | "rejected",
       email: user?.email || "N/A",
       serviceType: app.service_type
     }

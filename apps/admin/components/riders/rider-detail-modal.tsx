@@ -18,8 +18,6 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-
 interface Rider {
   id: string
   rider: string
@@ -56,30 +54,13 @@ export function RiderDetailModal({
     })
   }
 
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case "online":
-        return "default"
-      case "busy":
-        return "secondary"
-      case "offline":
-        return "destructive"
-      default:
-        return "secondary"
-    }
-  }
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case "online":
-        return "ONLINE"
-      case "busy":
-        return "BUSY"
-      case "offline":
-        return "OFFLINE"
-      default:
-        return status.toUpperCase()
-    }
+  const getStatusConfig = (status: string) => {
+    const config = {
+      online: { label: "Online", className: "text-green-600 bg-green-50" },
+      busy: { label: "Busy", className: "text-yellow-600 bg-yellow-50" },
+      offline: { label: "Offline", className: "text-gray-600 bg-gray-50" },
+    }[status] || { label: status, className: "text-gray-600 bg-gray-50" }
+    return config
   }
 
   const formatEarnings = (earnings: number) => {
@@ -96,15 +77,15 @@ export function RiderDetailModal({
         <DialogHeader className="flex flex-row items-start justify-between">
           <div>
             <DialogTitle className="text-2xl font-bold">{rider.rider}</DialogTitle>
-            <p className="text-sm text-muted-foreground mt-1">{rider.id}</p>
+            {/* <p className="text-sm text-muted-foreground mt-1">{rider.id}</p> */}
           </div>
           <Button
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="h-10 w-10 text-muted-foreground hover:text-foreground"
+            className="h-9 w-9 text-muted-foreground hover:text-foreground"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </Button>
         </DialogHeader>
 
@@ -117,9 +98,9 @@ export function RiderDetailModal({
               </AvatarFallback>
             </Avatar>
           </div>
-          <Badge variant={getStatusVariant(rider.status)} className="w-fit mx-auto">
-            {getStatusLabel(rider.status)}
-          </Badge>
+          <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusConfig(rider.status).className} w-fit mx-auto`}>
+            {getStatusConfig(rider.status).label}
+          </div>
         </div>
 
         <div className="space-y-6">
@@ -153,36 +134,36 @@ export function RiderDetailModal({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <div className="flex items-start space-x-3">
-                <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div>
+                <Phone className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-muted-foreground">Phone Number</p>
-                  <p className="text-sm font-semibold">{rider.contact}</p>
+                  <p className="text-sm font-semibold break-words">{rider.contact}</p>
                 </div>
               </div>
 
               <div className="flex items-start space-x-3">
-                <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div>
+                <Mail className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-muted-foreground">Email</p>
-                  <p className="text-sm font-semibold">{rider.email}</p>
+                  <p className="text-sm font-semibold break-all">{rider.email}</p>
                 </div>
               </div>
             </div>
 
             <div className="space-y-4">
               <div className="flex items-start space-x-3">
-                <Car className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div>
+                <Car className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-muted-foreground">Vehicle</p>
-                  <p className="text-sm font-semibold">{rider.vehicle}</p>
+                  <p className="text-sm font-semibold break-words">{rider.vehicle}</p>
                 </div>
               </div>
 
               <div className="flex items-start space-x-3">
-                <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div>
+                <Calendar className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-muted-foreground">Joined Date</p>
-                  <p className="text-sm font-semibold">2024-01-15</p>
+                  <p className="text-sm font-semibold break-words">2024-01-15</p>
                 </div>
               </div>
             </div>
@@ -201,7 +182,7 @@ export function RiderDetailModal({
                       rider.status === 'online' ? 'bg-green-500' : 
                       rider.status === 'busy' ? 'bg-yellow-500' : 'bg-gray-400'
                     }`}></div>
-                    <span className="text-sm font-medium">{getStatusLabel(rider.status)}</span>
+                    <span className="text-sm font-medium">{getStatusConfig(rider.status).label}</span>
                   </div>
                 </div>
               </CardContent>
@@ -209,28 +190,12 @@ export function RiderDetailModal({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex justify-end space-x-3 pt-4">
+          <div className="flex justify-end">
             <Button
               variant="outline"
               onClick={onClose}
             >
               Close
-            </Button>
-            <Button
-              onClick={() => onToggleStatus(rider)}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              {rider.status === 'offline' ? (
-                <>
-                  <ToggleRight className="h-4 w-4 mr-2" />
-                  Toggle Status
-                </>
-              ) : (
-                <>
-                  <ToggleLeft className="h-4 w-4 mr-2" />
-                  Toggle Status
-                </>
-              )}
             </Button>
           </div>
         </div>

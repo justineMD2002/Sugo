@@ -39,19 +39,14 @@ export function ConfirmationModal({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md" showCloseButton={false}>
         <DialogHeader className="flex flex-row items-start justify-between">
-          <DialogTitle className="flex items-center space-x-2">
-            {confirmVariant === "destructive" && (
-              <AlertTriangle className="h-5 w-5 text-red-500" />
-            )}
-            <span>{title}</span>
-          </DialogTitle>
+          <DialogTitle className="text-xl">{title}</DialogTitle>
           <Button
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="h-10 w-10 text-muted-foreground hover:text-foreground"
+            className="h-9 w-9 text-muted-foreground hover:text-foreground"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </Button>
         </DialogHeader>
         <DialogDescription className="text-sm text-muted-foreground">

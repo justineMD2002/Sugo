@@ -13,8 +13,6 @@ import {
   Card,
   CardContent,
 } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-
 import type { Order, User, Delivery } from "@/lib/types/database"
 
 interface OrderWithDetails extends Order {
@@ -46,50 +44,18 @@ export function OrderDetailModal({
     })
   }
 
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case "pending":
-        return "secondary"
-      case "confirmed":
-        return "default"
-      case "preparing":
-        return "default"
-      case "picked":
-        return "default"
-      case "in_transit":
-        return "default"
-      case "delivered":
-        return "default"
-      case "completed":
-        return "default"
-      case "cancelled":
-        return "destructive"
-      default:
-        return "secondary"
-    }
-  }
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case "pending":
-        return "Pending"
-      case "confirmed":
-        return "Confirmed"
-      case "preparing":
-        return "Preparing"
-      case "picked":
-        return "Picked"
-      case "in_transit":
-        return "In Transit"
-      case "delivered":
-        return "Delivered"
-      case "completed":
-        return "Completed"
-      case "cancelled":
-        return "Cancelled"
-      default:
-        return status
-    }
+  const getStatusConfig = (status: string) => {
+    const config = {
+      pending: { label: "Pending", className: "text-yellow-600 bg-yellow-50" },
+      confirmed: { label: "Confirmed", className: "text-blue-600 bg-blue-50" },
+      preparing: { label: "Preparing", className: "text-purple-600 bg-purple-50" },
+      picked: { label: "Picked", className: "text-orange-600 bg-orange-50" },
+      in_transit: { label: "In Transit", className: "text-blue-600 bg-blue-50" },
+      delivered: { label: "Delivered", className: "text-green-600 bg-green-50" },
+      completed: { label: "Completed", className: "text-green-600 bg-green-50" },
+      cancelled: { label: "Cancelled", className: "text-red-600 bg-red-50" },
+    }[status] || { label: status, className: "text-gray-600 bg-gray-50" }
+    return config
   }
 
   const formatAmount = (amount: number) => {
@@ -124,9 +90,9 @@ export function OrderDetailModal({
             <CardContent>
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium text-muted-foreground">Order Status</p>
-                <Badge variant={getStatusVariant(order.status)} className="text-sm">
-                  {getStatusLabel(order.status)}
-                </Badge>
+                <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusConfig(order.status).className}`}>
+                  {getStatusConfig(order.status).label}
+                </div>
               </div>
               <p className="text-sm font-medium text-muted-foreground mt-4">Amount</p>
               <div className="text-2xl font-bold text-foreground">{formatAmount(order.total_amount)}</div>
@@ -138,10 +104,10 @@ export function OrderDetailModal({
             <div className="space-y-4">
               <h3 className="text-sm font-medium text-muted-foreground">Customer</h3>
               <div className="flex items-start space-x-3">
-                <UserIcon className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div>
-                  <p className="text-sm font-semibold">{order.customer.full_name}</p>
-                  <p className="text-xs text-muted-foreground">{order.customer.phone_number}</p>
+                <UserIcon className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold break-words">{order.customer.full_name}</p>
+                  <p className="text-xs text-muted-foreground break-words">{order.customer.phone_number}</p>
                 </div>
               </div>
             </div>
@@ -149,12 +115,12 @@ export function OrderDetailModal({
             <div className="space-y-4">
               <h3 className="text-sm font-medium text-muted-foreground">Rider</h3>
               <div className="flex items-start space-x-3">
-                <UserIcon className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div>
+                <UserIcon className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
                   {order.rider ? (
                     <>
-                      <p className="text-sm font-semibold">{order.rider.full_name}</p>
-                      <p className="text-xs text-muted-foreground">{order.rider.phone_number}</p>
+                      <p className="text-sm font-semibold break-words">{order.rider.full_name}</p>
+                      <p className="text-xs text-muted-foreground break-words">{order.rider.phone_number}</p>
                     </>
                   ) : (
                     <p className="text-sm text-muted-foreground">Not assigned</p>
@@ -169,24 +135,31 @@ export function OrderDetailModal({
             <h3 className="text-sm font-medium text-muted-foreground">Route</h3>
             <div className="space-y-3">
               <div className="flex items-start space-x-3">
-                <MapPin className="h-5 w-5 text-red-500 mt-0.5" />
-                <div>
+                <MapPin className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium text-muted-foreground">Pickup</p>
-                  <p className="text-sm font-semibold">{order.pickup_address || "N/A"}</p>
+                  <p className="text-sm font-semibold break-words">{order.pickup_address || "N/A"}</p>
                 </div>
               </div>
               <div className="flex items-start space-x-3">
-                <MapPin className="h-5 w-5 text-green-500 mt-0.5" />
-                <div>
+                <MapPin className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium text-muted-foreground">Drop-off</p>
-                  <p className="text-sm font-semibold">{order.delivery_address || "N/A"}</p>
+                  <p className="text-sm font-semibold break-words">{order.delivery_address || "N/A"}</p>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Action Button */}
-          
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              onClick={onClose}
+            >
+              Close
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

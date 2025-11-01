@@ -41,6 +41,8 @@ export interface RecentOrder {
   total_amount: number
   created_at: string
   rider_name?: string
+  // Full data for modals
+  orderData?: any
 }
 
 export interface RecentApplication {
@@ -51,18 +53,23 @@ export interface RecentApplication {
   experience: string
   status: string
   applied_at: string
+  // Full data for modals
+  applicationData?: any
 }
 
 export interface RecentTicket {
   id: string
   ticket_number: string
   customer_name: string
+  customer_phone?: string
   service_type: string
   description: string
   priority: string
   status: string
   created_at: string
   technician_name?: string
+  // Full data for modals
+  ticketData?: any
 }
 
 export interface DashboardData {
@@ -136,21 +143,15 @@ export async function getDashboardData(): Promise<DashboardData> {
     })
   }
 
-  // Get recent orders (last 4)
+  // Get recent orders (last 4) with full details
   const { data: recentOrdersData, error: recentOrdersError } = await supabase
     .from("orders")
     .select(`
-      id,
-      order_number,
-      total_amount,
-      status,
-      service_type,
-      created_at,
-      pickup_address,
-      delivery_address,
-      customer:users!orders_customer_id_fkey(full_name),
+      *,
+      customer:users!orders_customer_id_fkey(*),
       delivery:deliveries!deliveries_order_id_fkey(
-        rider:users!deliveries_rider_id_fkey(full_name)
+        *,
+        rider:users!deliveries_rider_id_fkey(*)
       )
     `)
     .order("created_at", { ascending: false })
@@ -160,32 +161,52 @@ export async function getDashboardData(): Promise<DashboardData> {
     throw new Error(`Failed to fetch recent orders: ${recentOrdersError.message}`)
   }
 
+
   const recentOrders: RecentOrder[] = recentOrdersData?.map(order => {
     // Choose address based on service type
     const customer_address = order.service_type === "delivery" 
       ? order.delivery_address || order.pickup_address || "N/A"
       : order.pickup_address || order.delivery_address || "N/A"
     
+    // Handle customer - can be array or object
+    const customerRaw = order.customer as any
+    const customer = Array.isArray(customerRaw) ? customerRaw[0] : customerRaw
+    
+    // Handle delivery - it's an array, get first item
+    const deliveryRaw = order.delivery as any
+    const delivery = Array.isArray(deliveryRaw) ? deliveryRaw[0] : deliveryRaw
+    
+    // Handle rider inside delivery - can be array or object
+    const riderRaw = delivery?.rider as any
+    const rider = Array.isArray(riderRaw) ? riderRaw[0] : riderRaw
+    
+    // Prepare full order data for modal
+    const orderData = {
+      ...order,
+      customer: customer || null,
+      rider: rider || undefined,
+      delivery: delivery || undefined,
+    }
+    
     return {
       id: order.id,
       order_number: order.order_number,
-      customer_name: order.customer?.[0]?.full_name || "Unknown Customer",
+      customer_name: customer?.full_name || "Unknown Customer",
       customer_address,
       status: order.status,
       total_amount: order.total_amount,
       created_at: order.created_at,
-      rider_name: order.delivery?.[0]?.rider?.[0]?.full_name
+      rider_name: rider?.full_name,
+      orderData
     }
   }) || []
 
-  // Get recent applications (last 3)
+  // Get recent applications (last 3) with full details
   const { data: recentApplicationsData, error: recentApplicationsError } = await supabase
     .from("rider_profiles")
     .select(`
-      id,
-      status,
-      created_at,
-      user:users!rider_profiles_user_id_fkey(full_name, email, phone_number)
+      *,
+      user:users!rider_profiles_user_id_fkey(*)
     `)
     .eq("status", "pending")
     .order("created_at", { ascending: false })
@@ -195,26 +216,45 @@ export async function getDashboardData(): Promise<DashboardData> {
     throw new Error(`Failed to fetch recent applications: ${recentApplicationsError.message}`)
   }
 
-  const recentApplications: RecentApplication[] = recentApplicationsData?.map(app => ({
-    id: app.id,
-    applicant_name: app.user?.[0]?.full_name || "Unknown Applicant",
-    email: app.user?.[0]?.email || "N/A",
-    phone_number: app.user?.[0]?.phone_number || "N/A",
-    experience: "N/A", // This would need to be calculated or stored separately
-    status: app.status,
-    applied_at: app.created_at
-  })) || []
+  const recentApplications: RecentApplication[] = recentApplicationsData?.map(app => {
+    // Handle user - can be array or object
+    const userRaw = app.user as any
+    const user = Array.isArray(userRaw) ? userRaw[0] : userRaw
+    
+    // Prepare full application data for modal
+    const applicationData = {
+      id: app.id,
+      applicant: user?.full_name || "Unknown Applicant",
+      contact: user?.phone_number || "N/A",
+      address: user?.address || "N/A",
+      vehicle: app.vehicle_brand && app.vehicle_model 
+        ? `${app.vehicle_brand} ${app.vehicle_model}` 
+        : app.vehicle_brand || app.vehicle_model || "Unknown Vehicle",
+      plateNumber: app.plate_number || "N/A",
+      appliedDate: app.created_at,
+      status: app.status,
+      email: user?.email || "N/A",
+      serviceType: app.service_type
+    }
+    
+    return {
+      id: app.id,
+      applicant_name: user?.full_name || "Unknown Applicant",
+      email: user?.email || "N/A",
+      phone_number: user?.phone_number || "N/A",
+      experience: "N/A", // This would need to be calculated or stored separately
+      status: app.status,
+      applied_at: app.created_at,
+      applicationData
+    }
+  }) || []
 
-  // Get recent tickets (last 4)
+  // Get recent tickets (last 4) with full details
   const { data: recentTicketsData, error: recentTicketsError } = await supabase
     .from("tickets")
     .select(`
-      id,
-      ticket_number,
-      service_type,
-      status,
-      created_at,
-      customer:users!tickets_customer_id_fkey(full_name)
+      *,
+      customer:users!tickets_customer_id_fkey(full_name, phone_number, email)
     `)
     .order("created_at", { ascending: false })
     .limit(4)
@@ -223,17 +263,32 @@ export async function getDashboardData(): Promise<DashboardData> {
     throw new Error(`Failed to fetch recent tickets: ${recentTicketsError.message}`)
   }
 
-  const recentTickets: RecentTicket[] = recentTicketsData?.map(ticket => ({
-    id: ticket.id,
-    ticket_number: ticket.ticket_number,
-    customer_name: ticket.customer?.[0]?.full_name || "Unknown Customer",
-    service_type: ticket.service_type,
-    description: "N/A", // Not available in schema
-    priority: "N/A", // Not available in schema
-    status: ticket.status,
-    created_at: ticket.created_at,
-    technician_name: undefined // Not available in schema
-  })) || []
+
+  const recentTickets: RecentTicket[] = recentTicketsData?.map(ticket => {
+    // Handle customer - can be array or object
+    const customerRaw = ticket.customer as any
+    const customer = Array.isArray(customerRaw) ? customerRaw[0] : customerRaw
+    
+    // Prepare full ticket data for modal
+    const ticketData = {
+      ...ticket,
+      customer: customer || null,
+    }
+    
+    return {
+      id: ticket.id,
+      ticket_number: ticket.ticket_number,
+      customer_name: customer?.full_name || "Unknown Customer",
+      customer_phone: customer?.phone_number,
+      service_type: ticket.service_type,
+      description: "N/A", // Not available in schema
+      priority: "N/A", // Not available in schema
+      status: ticket.status,
+      created_at: ticket.created_at,
+      technician_name: undefined, // Not available in schema
+      ticketData
+    }
+  }) || []
 
   // Calculate today's stats
   const today = new Date().toISOString().split('T')[0]

@@ -60,6 +60,7 @@ interface TicketsProps {
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
   onSearch?: (query: string) => void
+  onStatusFilter?: (status: string | undefined) => void
   isRefreshing?: boolean
 }
 
@@ -177,6 +178,7 @@ export function Tickets({
   onPageChange,
   onPageSizeChange,
   onSearch,
+  onStatusFilter,
   isRefreshing
 }: TicketsProps) {
   const { user, isLoading: userLoading } = useCurrentUser()
@@ -305,6 +307,29 @@ export function Tickets({
           onChange={(event) => setSearchValue(event.target.value)}
           className="max-w-sm"
         />
+        <Select
+          value={table.getColumn("status")?.getFilterValue() as string || "all"}
+          onValueChange={(value) => {
+            if (value === "all") {
+              table.getColumn("status")?.setFilterValue(undefined)
+              onStatusFilter?.(undefined)
+            } else {
+              table.getColumn("status")?.setFilterValue(value)
+              onStatusFilter?.(value)
+            }
+          }}
+        >
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="open">Open</SelectItem>
+            <SelectItem value="in_progress">In Progress</SelectItem>
+            <SelectItem value="resolved">Resolved</SelectItem>
+            <SelectItem value="closed">Closed</SelectItem>
+          </SelectContent>
+        </Select>
         {isRefreshing && (
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         )}
@@ -390,8 +415,7 @@ export function Tickets({
       
       <div className="flex items-center justify-between px-4 py-4">
         <div className="text-muted-foreground text-sm">
-          {table.getFilteredSelectedRowModel().rows.length} of{" "}
-          {table.getFilteredRowModel().rows.length} row(s) selected.
+          Showing {table.getFilteredRowModel().rows.length} of {totalCount} row(s)
         </div>
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-2">

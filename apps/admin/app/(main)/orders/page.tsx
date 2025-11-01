@@ -18,18 +18,31 @@ export default function OrdersPage() {
   
   const [pageSize, setPageSize] = useState(10)
   const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined)
 
-  const fetchOrders = async (page: number = currentPage, size: number = pageSize, query: string = search) => {
+  const fetchOrders = async (page?: number, size?: number, query?: string) => {
+    // Use provided parameters or fall back to current state
+    const pageNum = page ?? currentPage
+    const pageSizeNum = size ?? pageSize
+    const searchQuery = query ?? search
+    
     try {
       if (!hasLoaded) setIsLoading(true)
       else setIsRefreshing(true)
       setError(null)
-      const { data, count, totalPages } = await getOrdersWithDetails(page, size, { search: query })
+      const filters: { search?: string; status?: string } = {}
+      if (searchQuery) {
+        filters.search = searchQuery
+      }
+      if (statusFilter) {
+        filters.status = statusFilter
+      }
+      const { data, count, totalPages } = await getOrdersWithDetails(pageNum, pageSizeNum, filters)
       setOrders(data)
       setTotalCount(count)
       setTotalPages(totalPages)
-      setCurrentPage(page)
-      setPageSize(size)
+      setCurrentPage(pageNum)
+      setPageSize(pageSizeNum)
       setHasLoaded(true)
     } catch (err) {
       console.error("Failed to fetch orders:", err)
@@ -41,14 +54,44 @@ export default function OrdersPage() {
   }
 
   const handlePageSizeChange = (newSize: number) => {
-    fetchOrders(1, newSize)
+    setPageSize(newSize)
   }
 
   const handleSearch = (query: string) => {
     setSearch(query)
-    fetchOrders(1, pageSize, query)
   }
 
+  const handleStatusFilter = (status: string | undefined) => {
+    setStatusFilter(status)
+  }
+
+  // Refetch when filters or page size change (but not on initial load)
+  useEffect(() => {
+    if (hasLoaded) {
+      // Create a fresh filters object with current state values
+      const filters: { search?: string; status?: string } = {}
+      if (search) {
+        filters.search = search
+      }
+      if (statusFilter) {
+        filters.status = statusFilter
+      }
+      getOrdersWithDetails(1, pageSize, filters).then(({ data, count, totalPages }) => {
+        setOrders(data)
+        setTotalCount(count)
+        setTotalPages(totalPages)
+        setCurrentPage(1)
+        setIsRefreshing(false)
+      }).catch((err) => {
+        console.error("Failed to fetch orders:", err)
+        setError("Failed to load orders. Please try again later.")
+        setIsRefreshing(false)
+      })
+      setIsRefreshing(true)
+    }
+  }, [statusFilter, pageSize, search, hasLoaded])
+
+  // Initial fetch
   useEffect(() => {
     fetchOrders()
   }, [])
@@ -84,9 +127,31 @@ export default function OrdersPage() {
         currentPage={currentPage}
         totalPages={totalPages}
         pageSize={pageSize}
-        onPageChange={fetchOrders}
+        onPageChange={(page) => {
+          const filters: { search?: string; status?: string } = {}
+          if (search) {
+            filters.search = search
+          }
+          if (statusFilter) {
+            filters.status = statusFilter
+          }
+          getOrdersWithDetails(page, pageSize, filters).then(({ data, count, totalPages }) => {
+            setOrders(data)
+            setTotalCount(count)
+            setTotalPages(totalPages)
+            setCurrentPage(page)
+            setIsRefreshing(false)
+          }).catch((err) => {
+            console.error("Failed to fetch orders:", err)
+            setError("Failed to load orders. Please try again later.")
+            setIsRefreshing(false)
+          })
+          setIsRefreshing(true)
+        }}
         onPageSizeChange={handlePageSizeChange}
         onSearch={handleSearch}
+        onStatusFilter={handleStatusFilter}
+        statusFilter={statusFilter}
         isRefreshing={isRefreshing}
       />
     </div>

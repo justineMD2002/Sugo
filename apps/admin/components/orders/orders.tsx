@@ -20,6 +20,8 @@ interface OrdersProps {
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
   onSearch: (query: string) => void
+  onStatusFilter?: (status: string | undefined) => void
+  statusFilter?: string | undefined
   isRefreshing?: boolean
 }
 
@@ -32,6 +34,8 @@ export function Orders({
   onPageChange,
   onPageSizeChange,
   onSearch,
+  onStatusFilter,
+  statusFilter,
   isRefreshing
 }: OrdersProps) {
   const [selectedOrder, setSelectedOrder] = React.useState<OrderWithDetails | null>(null)
@@ -59,6 +63,8 @@ export function Orders({
         onPageChange={onPageChange}
         onPageSizeChange={onPageSizeChange}
         onSearch={onSearch}
+        onStatusFilter={onStatusFilter}
+        statusFilter={statusFilter}
         isRefreshing={isRefreshing}
       />
       

@@ -14,6 +14,8 @@ interface RidersProps {
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
   onSearch: (query: string) => void
+  onStatusFilter?: (status: string | undefined) => void
+  statusFilter?: string | undefined
   isRefreshing?: boolean
 }
 
@@ -26,6 +28,8 @@ export function Riders({
   onPageChange,
   onPageSizeChange,
   onSearch,
+  onStatusFilter,
+  statusFilter,
   isRefreshing
 }: RidersProps) {
   const [selectedRider, setSelectedRider] = React.useState<Rider | null>(null)
@@ -58,6 +62,8 @@ export function Riders({
         onPageChange={onPageChange}
         onPageSizeChange={onPageSizeChange}
         onSearch={onSearch}
+        onStatusFilter={onStatusFilter}
+        statusFilter={statusFilter}
         isRefreshing={isRefreshing}
       />
       

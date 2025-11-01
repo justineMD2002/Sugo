@@ -1,11 +1,13 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 import { ApplicationsTable } from "./applications-table"
 import { ApplicationDetailModal } from "./application-detail-modal"
 import { ConfirmationModal } from "@/components/confirmation-modal"
 import { Check, X } from "lucide-react"
 import type { Application } from "@/lib/api/applications"
+import { updateApplicationStatus } from "@/lib/api/applications"
 
 interface ApplicationsProps {
   initialApplications: Application[]
@@ -16,7 +18,10 @@ interface ApplicationsProps {
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
   onSearch: (query: string) => void
+  onStatusFilter?: (status: string | undefined) => void
+  statusFilter?: string | undefined
   isRefreshing?: boolean
+  onRefresh?: () => void
 }
 
 export function Applications({ 
@@ -28,7 +33,10 @@ export function Applications({
   onPageChange,
   onPageSizeChange,
   onSearch,
-  isRefreshing
+  onStatusFilter,
+  statusFilter,
+  isRefreshing,
+  onRefresh
 }: ApplicationsProps) {
   const [selectedApplication, setSelectedApplication] = React.useState<Application | null>(null)
   const [isDetailModalOpen, setIsDetailModalOpen] = React.useState(false)
@@ -65,16 +73,32 @@ export function Applications({
 
     setIsProcessing(true)
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      const status = confirmationAction.type === 'approve' ? 'approved' : 'rejected'
       
-      console.log(`${confirmationAction.type}ing application:`, confirmationAction.application.id)
-      // Add your actual API call here
+      // Update the application status in the database
+      await updateApplicationStatus(confirmationAction.application.id, status)
+      
+      // Refresh the data to reflect the changes
+      onRefresh?.()
+      
+      // Show success toast
+      toast.success(
+        `Application ${confirmationAction.type === 'approve' ? 'approved' : 'rejected'} successfully`,
+        {
+          description: `${confirmationAction.application.applicant}'s application has been ${confirmationAction.type === 'approve' ? 'approved' : 'rejected'}.`,
+        }
+      )
       
       setIsConfirmationModalOpen(false)
       setConfirmationAction({ type: 'approve', application: null })
     } catch (error) {
       console.error('Error processing application:', error)
+      toast.error(
+        `Failed to ${confirmationAction.type === 'approve' ? 'approve' : 'reject'} application`,
+        {
+          description: error instanceof Error ? error.message : 'An unexpected error occurred.',
+        }
+      )
     } finally {
       setIsProcessing(false)
     }
@@ -104,6 +128,8 @@ export function Applications({
         onPageChange={onPageChange}
         onPageSizeChange={onPageSizeChange}
         onSearch={onSearch}
+        onStatusFilter={onStatusFilter}
+        statusFilter={statusFilter}
         isRefreshing={isRefreshing}
       />
       
