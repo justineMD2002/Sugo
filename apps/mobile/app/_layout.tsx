@@ -1,7 +1,8 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
+// Temporarily disabled for APK build - causes New Architecture autolinking issues
+// import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
