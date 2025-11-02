@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { supabase } from '../../../lib/supabase';
 import Chat, { ChatMessage } from '../Chat';
 import { TICKET_SERVICE_TYPE } from '../../../constants/enums/service.enums';
+import { pickImage, uploadImageToSupabase } from '../../../utils/image.utils';
 
 type ServiceType = 'plumbing' | 'aircon' | 'electrician';
 
@@ -37,6 +38,7 @@ export default function ServiceChatScreen({ serviceType, customerId, customerNam
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [ticketClosed, setTicketClosed] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
 
   // Generate ticket number
   const generateTicketNumber = () => {
@@ -157,6 +159,8 @@ export default function ServiceChatScreen({ serviceType, customerId, customerNam
           hour: '2-digit',
           minute: '2-digit',
         }),
+        messageType: msg.message_type as 'text' | 'image',
+        attachmentUrl: msg.attachment_url || undefined,
       }));
 
       setMessages(formattedMessages);
@@ -197,6 +201,8 @@ export default function ServiceChatScreen({ serviceType, customerId, customerNam
               hour: '2-digit',
               minute: '2-digit',
             }),
+            messageType: newMessage.message_type as 'text' | 'image',
+            attachmentUrl: newMessage.attachment_url || undefined,
           };
           setMessages((prev) => [...prev, formattedMessage]);
 
@@ -262,6 +268,51 @@ export default function ServiceChatScreen({ serviceType, customerId, customerNam
     }
   };
 
+  // Handle image upload
+  const handleImagePick = async () => {
+    if (!ticket || ticketClosed) return;
+
+    try {
+      setImageUploading(true);
+
+      // Pick image from library
+      const image = await pickImage();
+      if (!image) {
+        setImageUploading(false);
+        return;
+      }
+
+      // Upload to Supabase storage
+      const imageUrl = await uploadImageToSupabase(
+        image.uri,
+        'message_images',
+        `tickets/${ticket.id}`
+      );
+
+      // Send message with image
+      const { error } = await supabase.from('ticket_messages').insert({
+        ticket_id: ticket.id,
+        sender_id: customerId,
+        message_text: '', // Empty text for image-only messages
+        message_type: 'image',
+        attachment_url: imageUrl,
+        is_read: false,
+      });
+
+      if (error) {
+        console.error('Error sending image:', error);
+        Alert.alert('Error', 'Failed to send image');
+        return;
+      }
+
+      setImageUploading(false);
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      Alert.alert('Error', 'Failed to upload image');
+      setImageUploading(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -289,8 +340,11 @@ export default function ServiceChatScreen({ serviceType, customerId, customerNam
         input={input}
         onChangeInput={setInput}
         onSend={handleSend}
+        onImagePick={handleImagePick}
         alignRightFor="customer"
         disabled={ticketClosed}
+        imageUploading={imageUploading}
+        bottomPadding={100}
       />
     </View>
   );

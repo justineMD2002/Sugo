@@ -24,6 +24,7 @@ import { useOrderRealtime } from '@/hooks/use-order-realtime';
 import { notifyRiderAccepted, notifyNewMessage, notifyOrderStatusChanged, getUserNotifications, getUnreadNotificationCount, markAllNotificationsAsRead } from '@/lib/notificationService';
 import { RatingService } from '@/services/rating.service';
 import { EarningsService, EarningsSummary, DailyEarnings, RiderStats } from '@/services/earnings.service';
+import { pickImage, uploadImageToSupabase } from '@/utils/image.utils';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Alert, ScrollView, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View, Linking, Platform, ActivityIndicator, Image, RefreshControl } from 'react-native';
@@ -85,6 +86,7 @@ export default function SugoScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
 
   // Notification state
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -601,6 +603,77 @@ export default function SugoScreen() {
     }
   };
 
+  // Handle image upload for delivery chat
+  const handleDeliveryChatImagePick = async () => {
+    const activeOrder = currentOrder || currentDelivery?.order;
+    if (!activeOrder || imageUploading) return;
+
+    try {
+      setImageUploading(true);
+
+      // Pick image from library
+      const image = await pickImage();
+      if (!image) {
+        setImageUploading(false);
+        return;
+      }
+
+      // Upload to Supabase storage
+      const imageUrl = await uploadImageToSupabase(
+        image.uri,
+        'message_images',
+        `orders/${activeOrder.id}`
+      );
+
+      // Determine receiver based on user type
+      let receiverId = null;
+      if (userType === 'customer') {
+        receiverId = activeOrder.rider_id || currentDelivery?.rider_id || null;
+      } else {
+        receiverId = activeOrder.customer_id || currentDelivery?.order?.customer_id || null;
+      }
+
+      const messageData = {
+        order_id: activeOrder.id,
+        sender_id: currentUser.id,
+        receiver_id: receiverId,
+        message_text: '', // Empty text for image-only messages
+        message_type: 'image',
+        attachment_url: imageUrl,
+        is_read: false,
+      };
+
+      const { data, error } = await supabase
+        .from('messages')
+        .insert([messageData])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error sending image:', error);
+        showToastMessage('Failed to send image. Please try again.', 'error');
+        setImageUploading(false);
+        return;
+      }
+
+      // Send notification to receiver
+      if (receiverId && userProfile?.full_name) {
+        notifyNewMessage(
+          receiverId,
+          userProfile.full_name,
+          'Sent an image',
+          activeOrder.id
+        );
+      }
+
+      setImageUploading(false);
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      showToastMessage('Failed to upload image', 'error');
+      setImageUploading(false);
+    }
+  };
+
   // Load messages for current order
   const loadMessages = async (orderId: string) => {
     try {
@@ -621,6 +694,8 @@ export default function SugoScreen() {
         sender: msg.sender_id === currentUser?.id ? userType : (userType === 'customer' ? 'rider' : 'customer'),
         text: msg.message_text,
         time: new Date(msg.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+        messageType: msg.message_type as 'text' | 'image',
+        attachmentUrl: msg.attachment_url || undefined,
       }));
 
       setMessages(transformedMessages);
@@ -1531,6 +1606,8 @@ export default function SugoScreen() {
             sender: newMsg.sender_id === currentUser?.id ? userType : (userType === 'customer' ? 'rider' : 'customer'),
             text: newMsg.message_text,
             time: new Date(newMsg.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+            messageType: newMsg.message_type as 'text' | 'image',
+            attachmentUrl: newMsg.attachment_url || undefined,
           };
 
           // Only add if message doesn't already exist (prevent duplicates from optimistic updates)
@@ -2806,7 +2883,7 @@ export default function SugoScreen() {
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                     <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Chat with Customer</Text>
                   </View>
-                  <Chat messages={messages} input={newMessage} onChangeInput={setNewMessage} onSend={sendMessage} alignRightFor="rider" disabled={isSendingMessage} />
+                  <Chat messages={messages} input={newMessage} onChangeInput={setNewMessage} onSend={sendMessage} onImagePick={handleDeliveryChatImagePick} alignRightFor="rider" disabled={isSendingMessage} imageUploading={imageUploading} />
                 </View>
                 <View style={{ flexDirection: 'row', gap: 12 }}>
                   <TouchableOpacity
@@ -3243,7 +3320,7 @@ export default function SugoScreen() {
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                     <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Chat with Rider</Text>
                   </View>
-                  <Chat messages={messages} input={newMessage} onChangeInput={setNewMessage} onSend={sendMessage} alignRightFor="customer" disabled={isSendingMessage} />
+                  <Chat messages={messages} input={newMessage} onChangeInput={setNewMessage} onSend={sendMessage} onImagePick={handleDeliveryChatImagePick} alignRightFor="customer" disabled={isSendingMessage} imageUploading={imageUploading} />
                 </View>
                 <View style={{ flexDirection: 'row', gap: 12 }}>
                   <TouchableOpacity
