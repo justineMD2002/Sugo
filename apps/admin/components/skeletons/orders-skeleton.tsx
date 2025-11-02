@@ -6,6 +6,7 @@ export function OrdersSkeleton() {
       {/* Header with filters */}
       <div className="flex items-center space-x-4 mb-4">
         <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-10 w-[160px]" />
         <Skeleton className="h-10 w-32 ml-auto" />
       </div>
       

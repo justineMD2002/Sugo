@@ -18,13 +18,17 @@ export default function TicketsPage() {
   
   const [pageSize, setPageSize] = useState(10)
   const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined)
 
-  const fetchTickets = async (page: number = currentPage, size: number = pageSize, query: string = search) => {
+  const fetchTickets = async (page: number = currentPage, size: number = pageSize, query: string = search, status: string | undefined = statusFilter) => {
     try {
       if (!hasLoaded) setIsLoading(true)
       else setIsRefreshing(true)
       setError(null)
-      const { data, count, totalPages } = await getTickets(page, size, { search: query })
+      const { data, count, totalPages } = await getTickets(page, size, { 
+        search: query,
+        status: status as "open" | "in_progress" | "resolved" | "closed" | undefined
+      })
       setTickets(data)
       setTotalCount(count)
       setTotalPages(totalPages)
@@ -46,7 +50,12 @@ export default function TicketsPage() {
 
   const handleSearch = (query: string) => {
     setSearch(query)
-    fetchTickets(1, pageSize, query)
+    fetchTickets(1, pageSize, query, statusFilter)
+  }
+
+  const handleStatusFilter = (status: string | undefined) => {
+    setStatusFilter(status)
+    fetchTickets(1, pageSize, search, status)
   }
 
   useEffect(() => {
@@ -87,6 +96,7 @@ export default function TicketsPage() {
         onPageChange={fetchTickets}
         onPageSizeChange={handlePageSizeChange}
         onSearch={handleSearch}
+        onStatusFilter={handleStatusFilter}
       />
     </div>
   )

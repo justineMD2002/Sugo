@@ -63,6 +63,8 @@ export function ChatModal({
     currentUserId
   })
 
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null)
+
   // Track pending status update to disable the dropdown until the parent reflects the change
   const [pendingStatus, setPendingStatus] = React.useState<string | null>(null)
   React.useEffect(() => {
@@ -76,6 +78,21 @@ export function ChatModal({
     onStatusChange(value)
   }
 
+  // Scroll to bottom when modal opens or messages change
+  const scrollToBottom = React.useCallback(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+    }
+  }, [])
+
+  // Scroll to bottom when modal opens or when messages change
+  React.useEffect(() => {
+    if (isOpen && !isLoading && messages.length > 0) {
+      // Small delay to ensure DOM is updated
+      setTimeout(scrollToBottom, 100)
+    }
+  }, [isOpen, isLoading, messages, scrollToBottom])
+
   // Mark messages as read when modal opens
   React.useEffect(() => {
     if (isOpen) {
@@ -86,6 +103,8 @@ export function ChatModal({
   const handleSendMessage = async (messageText: string, messageType?: "text" | "image" | "document", attachmentUrl?: string) => {
     try {
       await sendMessage(messageText, messageType, attachmentUrl)
+      // Scroll to bottom after sending message
+      setTimeout(scrollToBottom, 100)
     } catch (error) {
       console.error("Failed to send message:", error)
     }
@@ -100,11 +119,6 @@ export function ChatModal({
         <Card className="border-0 shadow-none h-full flex flex-col w-full min-h-0">
           <CardHeader className="flex flex-row items-center justify-between">
             <div className="flex items-center space-x-4">
-              <Avatar>
-                <AvatarFallback className="bg-blue-600 text-white">
-                  <Droplets className="h-4 w-4" />
-                </AvatarFallback>
-              </Avatar>
               <div>
                 <p className="text-sm font-medium leading-none">{ticketNumber} - {service}</p>
                 <p className="text-sm text-muted-foreground">{customerName}</p>
@@ -136,7 +150,7 @@ export function ChatModal({
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="flex-1 overflow-y-auto min-h-0">
+          <CardContent ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0">
             {isLoading ? (
               <div className="flex items-center justify-center h-full">
                 <Loader2 className="h-6 w-6 animate-spin" />

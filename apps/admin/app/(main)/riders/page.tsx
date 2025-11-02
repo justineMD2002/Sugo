@@ -18,18 +18,31 @@ export default function RidersPage() {
   
   const [pageSize, setPageSize] = useState(10)
   const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined)
 
-  const fetchRiders = async (page: number = currentPage, size: number = pageSize, query: string = search) => {
+  const fetchRiders = async (page?: number, size?: number, query?: string) => {
+    // Use provided parameters or fall back to current state
+    const pageNum = page ?? currentPage
+    const pageSizeNum = size ?? pageSize
+    const searchQuery = query ?? search
+    
     try {
       if (!hasLoaded) setIsLoading(true)
       else setIsRefreshing(true)
       setError(null)
-      const { data, count, totalPages } = await getRidersWithDetails(page, size, { search: query })
+      const filters: { search?: string; status?: "online" | "offline" | "busy" } = {}
+      if (searchQuery) {
+        filters.search = searchQuery
+      }
+      if (statusFilter) {
+        filters.status = statusFilter as "online" | "offline" | "busy"
+      }
+      const { data, count, totalPages } = await getRidersWithDetails(pageNum, pageSizeNum, filters)
       setRiders(data)
       setTotalCount(count)
       setTotalPages(totalPages)
-      setCurrentPage(page)
-      setPageSize(size)
+      setCurrentPage(pageNum)
+      setPageSize(pageSizeNum)
       setHasLoaded(true)
     } catch (err) {
       console.error("Failed to fetch riders:", err)
@@ -41,14 +54,44 @@ export default function RidersPage() {
   }
 
   const handlePageSizeChange = (newSize: number) => {
-    fetchRiders(1, newSize)
+    setPageSize(newSize)
   }
 
   const handleSearch = (query: string) => {
     setSearch(query)
-    fetchRiders(1, pageSize, query)
   }
 
+  const handleStatusFilter = (status: string | undefined) => {
+    setStatusFilter(status)
+  }
+
+  // Refetch when filters or page size change (but not on initial load)
+  useEffect(() => {
+    if (hasLoaded) {
+      // Create a fresh filters object with current state values
+      const filters: { search?: string; status?: "online" | "offline" | "busy" } = {}
+      if (search) {
+        filters.search = search
+      }
+      if (statusFilter) {
+        filters.status = statusFilter as "online" | "offline" | "busy"
+      }
+      getRidersWithDetails(1, pageSize, filters).then(({ data, count, totalPages }) => {
+        setRiders(data)
+        setTotalCount(count)
+        setTotalPages(totalPages)
+        setCurrentPage(1)
+        setIsRefreshing(false)
+      }).catch((err) => {
+        console.error("Failed to fetch riders:", err)
+        setError("Failed to load riders. Please try again later.")
+        setIsRefreshing(false)
+      })
+      setIsRefreshing(true)
+    }
+  }, [statusFilter, pageSize, search, hasLoaded])
+
+  // Initial fetch
   useEffect(() => {
     fetchRiders()
   }, [])
@@ -84,9 +127,32 @@ export default function RidersPage() {
         currentPage={currentPage}
         totalPages={totalPages}
         pageSize={pageSize}
-        onPageChange={fetchRiders}
+        onPageChange={(page) => {
+          const filters: { search?: string; status?: "online" | "offline" | "busy" } = {}
+          if (search) {
+            filters.search = search
+          }
+          if (statusFilter) {
+            filters.status = statusFilter as "online" | "offline" | "busy"
+          }
+          getRidersWithDetails(page, pageSize, filters).then(({ data, count, totalPages }) => {
+            setRiders(data)
+            setTotalCount(count)
+            setTotalPages(totalPages)
+            setCurrentPage(page)
+            setIsRefreshing(false)
+          }).catch((err) => {
+            console.error("Failed to fetch riders:", err)
+            setError("Failed to load riders. Please try again later.")
+            setIsRefreshing(false)
+          })
+          setIsRefreshing(true)
+        }}
         onPageSizeChange={handlePageSizeChange}
         onSearch={handleSearch}
+        onStatusFilter={handleStatusFilter}
+        statusFilter={statusFilter}
+        isRefreshing={isRefreshing}
       />
     </div>
   )

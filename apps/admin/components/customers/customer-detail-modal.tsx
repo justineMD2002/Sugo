@@ -39,15 +39,15 @@ export function CustomerDetailModal({
         <DialogHeader className="flex flex-row items-start justify-between">
           <div>
             <DialogTitle className="text-2xl font-bold">{customer.customer}</DialogTitle>
-            <p className="text-sm text-muted-foreground mt-1">{customer.id}</p>
+            {/* <p className="text-sm text-muted-foreground mt-1">{customer.id}</p> */}
           </div>
           <Button
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="h-10 w-10 text-muted-foreground hover:text-foreground"
+            className="h-9 w-9 text-muted-foreground hover:text-foreground"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </Button>
         </DialogHeader>
 
@@ -71,17 +71,17 @@ export function CustomerDetailModal({
               <CardContent className="p-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="flex items-start space-x-3">
-                    <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
+                    <Phone className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium">Phone Number</p>
-                      <p className="text-sm text-muted-foreground">{customer.contact}</p>
+                      <p className="text-sm text-muted-foreground break-words">{customer.contact}</p>
                     </div>
                   </div>
                   <div className="flex items-start space-x-3">
-                    <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
+                    <Mail className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium">Email Address</p>
-                      <p className="text-sm text-muted-foreground">{customer.email}</p>
+                      <p className="text-sm text-muted-foreground break-all">{customer.email}</p>
                     </div>
                   </div>
                 </div>
@@ -115,7 +115,14 @@ export function CustomerDetailModal({
           </div>
 
           {/* Action Button */}
-          
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              onClick={onClose}
+            >
+              Close
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

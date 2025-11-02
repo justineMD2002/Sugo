@@ -11,21 +11,21 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setIsLoading(true)
-        setError(null)
-        const dashboardData = await getDashboardData()
-        setData(dashboardData)
-      } catch (err) {
-        console.error("Failed to fetch dashboard data:", err)
-        setError("Failed to load dashboard data. Please try again later.")
-      } finally {
-        setIsLoading(false)
-      }
+  const fetchDashboardData = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      const dashboardData = await getDashboardData()
+      setData(dashboardData)
+    } catch (err) {
+      console.error("Failed to fetch dashboard data:", err)
+      setError("Failed to load dashboard data. Please try again later.")
+    } finally {
+      setIsLoading(false)
     }
+  }
 
+  useEffect(() => {
     fetchDashboardData()
   }, [])
 

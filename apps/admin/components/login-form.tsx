@@ -13,8 +13,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
 
 export function LoginForm({
   className,
@@ -25,6 +25,17 @@ export function LoginForm({
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Check for error from middleware redirect
+  useEffect(() => {
+    const errorParam = searchParams.get("error");
+    if (errorParam === "admin_required") {
+      setError("Access denied. Admin privileges required.");
+      // Clean up URL
+      router.replace("/login");
+    }
+  }, [searchParams, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,13 +44,38 @@ export function LoginForm({
     setError(null);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      if (error) throw error;
-      // Update this route to redirect to an authenticated route. The user already has an active session.
-      router.push("/dashboard");
+      
+      if (authError) throw authError;
+      if (!authData.user) {
+        throw new Error("Login failed. Please try again.");
+      }
+
+      // Fetch user profile to check user_type
+      const { data: userProfile, error: profileError } = await supabase
+        .from("users")
+        .select("user_type")
+        .eq("id", authData.user.id)
+        .single();
+
+      if (profileError) {
+        // Sign out if we can't fetch profile
+        await supabase.auth.signOut();
+        throw new Error("Failed to load user profile. Please try again.");
+      }
+
+      // Check if user is an admin
+      if (userProfile?.user_type !== "admin") {
+        // Sign out non-admin users
+        await supabase.auth.signOut();
+        throw new Error("Access denied. Admin privileges required.");
+      }
+
+      // User is admin, proceed to dashboard
+      router.push("/");
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");
     } finally {
@@ -92,15 +128,6 @@ export function LoginForm({
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? "Logging in..." : "Login"}
               </Button>
-            </div>
-            <div className="mt-4 text-center text-sm">
-              Don&apos;t have an account?{" "}
-              <Link
-                href="/sign-up"
-                className="underline underline-offset-4"
-              >
-                Sign up
-              </Link>
             </div>
           </form>
         </CardContent>

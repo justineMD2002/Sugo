@@ -18,18 +18,31 @@ export default function ApplicationsPage() {
   
   const [pageSize, setPageSize] = useState(10)
   const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined)
 
-  const fetchApplications = async (page: number = currentPage, size: number = pageSize, query: string = search) => {
+  const fetchApplications = async (page?: number, size?: number, query?: string) => {
+    // Use provided parameters or fall back to current state
+    const pageNum = page ?? currentPage
+    const pageSizeNum = size ?? pageSize
+    const searchQuery = query ?? search
+    
     try {
       if (!hasLoaded) setIsLoading(true)
       else setIsRefreshing(true)
       setError(null)
-      const { data, count, totalPages } = await getApplicationsWithDetails(page, size, { search: query })
+      const filters: { search?: string; status?: "pending" | "approved" | "rejected" } = {}
+      if (searchQuery) {
+        filters.search = searchQuery
+      }
+      if (statusFilter) {
+        filters.status = statusFilter as "pending" | "approved" | "rejected"
+      }
+      const { data, count, totalPages } = await getApplicationsWithDetails(pageNum, pageSizeNum, filters)
       setApplications(data)
       setTotalCount(count)
       setTotalPages(totalPages)
-      setCurrentPage(page)
-      setPageSize(size)
+      setCurrentPage(pageNum)
+      setPageSize(pageSizeNum)
       setHasLoaded(true)
     } catch (err) {
       console.error("Failed to fetch applications:", err)
@@ -41,14 +54,44 @@ export default function ApplicationsPage() {
   }
 
   const handlePageSizeChange = (newSize: number) => {
-    fetchApplications(1, newSize)
+    setPageSize(newSize)
   }
 
   const handleSearch = (query: string) => {
     setSearch(query)
-    fetchApplications(1, pageSize, query)
   }
 
+  const handleStatusFilter = (status: string | undefined) => {
+    setStatusFilter(status)
+  }
+
+  // Refetch when filters or page size change (but not on initial load)
+  useEffect(() => {
+    if (hasLoaded) {
+      // Create a fresh filters object with current state values
+      const filters: { search?: string; status?: "pending" | "approved" | "rejected" } = {}
+      if (search) {
+        filters.search = search
+      }
+      if (statusFilter) {
+        filters.status = statusFilter as "pending" | "approved" | "rejected"
+      }
+      getApplicationsWithDetails(1, pageSize, filters).then(({ data, count, totalPages }) => {
+        setApplications(data)
+        setTotalCount(count)
+        setTotalPages(totalPages)
+        setCurrentPage(1)
+        setIsRefreshing(false)
+      }).catch((err) => {
+        console.error("Failed to fetch applications:", err)
+        setError("Failed to load applications. Please try again later.")
+        setIsRefreshing(false)
+      })
+      setIsRefreshing(true)
+    }
+  }, [statusFilter, pageSize, search, hasLoaded])
+
+  // Initial fetch
   useEffect(() => {
     fetchApplications()
   }, [])
@@ -76,6 +119,27 @@ export default function ApplicationsPage() {
     )
   }
     
+  const handleRefresh = () => {
+    const filters: { search?: string; status?: "pending" | "approved" | "rejected" } = {}
+    if (search) {
+      filters.search = search
+    }
+    if (statusFilter) {
+      filters.status = statusFilter as "pending" | "approved" | "rejected"
+    }
+    getApplicationsWithDetails(currentPage, pageSize, filters).then(({ data, count, totalPages }) => {
+      setApplications(data)
+      setTotalCount(count)
+      setTotalPages(totalPages)
+      setIsRefreshing(false)
+    }).catch((err) => {
+      console.error("Failed to fetch applications:", err)
+      setError("Failed to load applications. Please try again later.")
+      setIsRefreshing(false)
+    })
+    setIsRefreshing(true)
+  }
+
   return (
     <div className="w-full px-4 lg:px-6 py-4 md:py-6">
       <Applications 
@@ -84,10 +148,33 @@ export default function ApplicationsPage() {
         currentPage={currentPage}
         totalPages={totalPages}
         pageSize={pageSize}
-        onPageChange={fetchApplications}
+        onPageChange={(page) => {
+          const filters: { search?: string; status?: "pending" | "approved" | "rejected" } = {}
+          if (search) {
+            filters.search = search
+          }
+          if (statusFilter) {
+            filters.status = statusFilter as "pending" | "approved" | "rejected"
+          }
+          getApplicationsWithDetails(page, pageSize, filters).then(({ data, count, totalPages }) => {
+            setApplications(data)
+            setTotalCount(count)
+            setTotalPages(totalPages)
+            setCurrentPage(page)
+            setIsRefreshing(false)
+          }).catch((err) => {
+            console.error("Failed to fetch applications:", err)
+            setError("Failed to load applications. Please try again later.")
+            setIsRefreshing(false)
+          })
+          setIsRefreshing(true)
+        }}
         onPageSizeChange={handlePageSizeChange}
         onSearch={handleSearch}
+        onStatusFilter={handleStatusFilter}
+        statusFilter={statusFilter}
         isRefreshing={isRefreshing}
+        onRefresh={handleRefresh}
       />
     </div>
   )
