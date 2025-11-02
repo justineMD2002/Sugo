@@ -2423,86 +2423,129 @@ export default function SugoScreen() {
   // Login Screen
   if (currentScreen === 'login') {
     return (
-      <View style={{ flex: 1, backgroundColor: '#fee2e2', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', width: '100%' }} showsVerticalScrollIndicator={false}>
-          <View style={{ backgroundColor: '#fff', borderRadius: 24, padding: 20, width: '90%', maxWidth: 700, minWidth: 320, gap: 16 }}>
-            <View style={{ alignItems: 'center', gap: 12, marginBottom: 12 }}>
+      <View style={{ flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', width: '100%', alignItems: 'center' }} showsVerticalScrollIndicator={false}>
+          <View style={{ width: '100%', maxWidth: 400, gap: 20 }}>
+            {/* Logo and Title */}
+            <View style={{ alignItems: 'center', gap: 16, marginBottom: 20 }}>
               <Image 
                 source={require('@/assets/images/icon.png')} 
-                style={{ width: 80, height: 80 }}
+                style={{ width: 120, height: 120 }}
                 resizeMode="contain"
               />
-              <Text style={{ fontSize: 32, fontWeight: '800', color: '#dc2626' }}>SUGO</Text>
-              <Text style={{ color: '#6b7280' }}>Log in with Phone Number</Text>
+              <Text style={{ fontSize: 24, fontWeight: '700', color: '#1f2937' }}>Log in with Phone Number</Text>
             </View>
-            <View style={{ gap: 12 }}>
-              <TextInput
-                placeholder="Phone Number"
-                placeholderTextColor="#9ca3af"
-                style={styles.input}
-                value={loginPhoneNumber}
-                onChangeText={(text) => {
-                  setLoginPhoneNumber(text);
-                  setLoginError('');
-                }}
-                keyboardType="phone-pad"
-                editable={!isLoading}
-              />
-              <TextInput
-                placeholder="Password"
-                placeholderTextColor="#9ca3af"
-                secureTextEntry
-                style={styles.input}
-                value={loginPassword}
-                onChangeText={(text) => {
-                  setLoginPassword(text);
-                  setLoginError('');
-                }}
-                editable={!isLoading}
-              />
-              {emailNotConfirmed && (
-                <Text style={styles.errorText}>Email not confirmed. Please check email.</Text>
-              )}
-              <TouchableOpacity
-                style={[styles.primaryBtn, isLoading && { opacity: 0.6 }]}
-                onPress={handleLogin}
-                disabled={isLoading}
-              >
-                <Text style={styles.primaryText}>{isLoading ? 'Logging in...' : 'Log in'}</Text>
-              </TouchableOpacity>
-            </View>
+
+            {/* Phone Input */}
+            <TextInput
+              placeholder="+63 915 123 6121"
+              placeholderTextColor="#9ca3af"
+              style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 14, color: '#111827', fontSize: 16 }}
+              value={loginPhoneNumber}
+              onChangeText={(text) => {
+                setLoginPhoneNumber(text);
+                setLoginError('');
+              }}
+              keyboardType="phone-pad"
+              editable={!isLoading}
+            />
+
+            {/* Password Input */}
+            <TextInput
+              placeholder="Password"
+              placeholderTextColor="#9ca3af"
+              secureTextEntry
+              style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 14, color: '#111827', fontSize: 16 }}
+              value={loginPassword}
+              onChangeText={(text) => {
+                setLoginPassword(text);
+                setLoginError('');
+              }}
+              editable={!isLoading}
+            />
+
+            {/* Remember Me Checkbox */}
+            <TouchableOpacity 
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+              onPress={() => {
+                // Toggle remember me functionality can be added here
+              }}
+              disabled={isLoading}
+            >
+              <View style={{ width: 20, height: 20, borderRadius: 4, borderWidth: 2, borderColor: '#374151', backgroundColor: '#fff' }}>
+                {/* Checkmark can be shown when active */}
+              </View>
+              <Text style={{ color: '#374151', fontSize: 15 }}>Remember me</Text>
+            </TouchableOpacity>
+
+            {emailNotConfirmed && (
+              <Text style={styles.errorText}>Email not confirmed. Please check email.</Text>
+            )}
+
+            {/* Login Button */}
+            <TouchableOpacity
+              style={[{ backgroundColor: '#dc2626', borderRadius: 12, paddingVertical: 16, alignItems: 'center' }, isLoading && { opacity: 0.6 }]}
+              onPress={handleLogin}
+              disabled={isLoading}
+            >
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>{isLoading ? 'Logging in...' : 'Log in'}</Text>
+            </TouchableOpacity>
+
+            {/* Sign Up Link */}
             <View style={{ alignItems: 'center' }}>
               <TouchableOpacity onPress={() => setCurrentScreen('signup')} disabled={isLoading}>
-                <Text style={{ color: '#dc2626', fontWeight: '600', opacity: isLoading ? 0.4 : 1 }}>Don&apos;t have an account? Sign up</Text>
+                <Text style={{ color: '#6b7280', fontSize: 15 }}>
+                  Don't have an account? <Text style={{ color: '#dc2626', fontWeight: '600' }}>Sign up</Text>
+                </Text>
               </TouchableOpacity>
             </View>
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, opacity: isLoading ? 0.4 : 1 }}>
+
+            {/* Customer/Rider Toggle */}
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
               <TouchableOpacity
-                style={[styles.segment, userType === 'customer' ? styles.segmentActive : undefined]}
+                style={[
+                  { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1 },
+                  userType === 'customer' 
+                    ? { backgroundColor: '#fee2e2', borderColor: '#dc2626' }
+                    : { backgroundColor: '#f3f4f6', borderColor: '#e5e7eb' }
+                ]}
                 onPress={() => {
                   setUserType('customer');
                   setLoginError('');
                 }}
                 disabled={isLoading}
               >
-                <Text style={[styles.segmentText, userType === 'customer' ? styles.segmentTextActive : undefined]}>Customer</Text>
+                <Text style={[
+                  { fontWeight: '600', fontSize: 15 },
+                  userType === 'customer' ? { color: '#dc2626' } : { color: '#6b7280' }
+                ]}>Customer</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.segment, userType === 'rider' ? styles.segmentActive : undefined]}
+                style={[
+                  { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1 },
+                  userType === 'rider' 
+                    ? { backgroundColor: '#fee2e2', borderColor: '#dc2626' }
+                    : { backgroundColor: '#f3f4f6', borderColor: '#e5e7eb' }
+                ]}
                 onPress={() => {
                   setUserType('rider');
                   setLoginError('');
                 }}
                 disabled={isLoading}
               >
-                <Text style={[styles.segmentText, userType === 'rider' ? styles.segmentTextActive : undefined]}>Worker</Text>
+                <Text style={[
+                  { fontWeight: '600', fontSize: 15 },
+                  userType === 'rider' ? { color: '#dc2626' } : { color: '#6b7280' }
+                ]}>Rider</Text>
               </TouchableOpacity>
             </View>
+
             {loginError ? (
-              <Text style={{ fontSize: 12, color: '#dc2626', marginTop: 4, fontWeight: '500' }}>
+              <Text style={{ fontSize: 12, color: '#dc2626', marginTop: 4, fontWeight: '500', textAlign: 'center' }}>
                 {loginError}
               </Text>
             ) : null}
+
             {userType === 'rider' && (
               <View style={{ gap: 8, opacity: isLoading ? 0.4 : 1 }}>
                 <Text style={{ fontSize: 12, color: '#6b7280', fontWeight: '600' }}>Select your service</Text>
@@ -2518,51 +2561,57 @@ export default function SugoScreen() {
   // Signup Screen
   if (currentScreen === 'signup') {
     return (
-      <View style={{ flex: 1, backgroundColor: '#fee2e2', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', width: '100%' }} showsVerticalScrollIndicator={false}>
-          <View style={{ backgroundColor: '#fff', borderRadius: 24, padding: 20, width: '90%', maxWidth: 700, minWidth: 320, gap: 12 }}>
-            <View style={{ alignItems: 'center', gap: 8, marginBottom: 8 }}>
+      <View style={{ flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', width: '100%', alignItems: 'center' }} showsVerticalScrollIndicator={false}>
+          <View style={{ width: '100%', maxWidth: 400, gap: 16 }}>
+            {/* Logo and Title */}
+            <View style={{ alignItems: 'center', gap: 16, marginBottom: 20 }}>
               <Image 
                 source={require('@/assets/images/icon.png')} 
-                style={{ width: 80, height: 80 }}
+                style={{ width: 120, height: 120 }}
                 resizeMode="contain"
               />
-              <Text style={{ fontSize: 22, fontWeight: '700', color: '#111827', textAlign: 'center' }}>Create Account</Text>
+              <Text style={{ fontSize: 24, fontWeight: '700', color: '#1f2937' }}>Create Account</Text>
             </View>
+
             <TextInput
               placeholder="Full Name"
               placeholderTextColor="#9ca3af"
-              style={styles.input}
+              style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 14, color: '#111827', fontSize: 16 }}
               value={signupFullName}
               onChangeText={setSignupFullName}
               editable={!isLoading}
             />
+            
+            {/* Phone Input */}
             <TextInput
-              placeholder="Phone Number"
+              placeholder="+63 915 123 6121"
               placeholderTextColor="#9ca3af"
-              style={styles.input}
+              style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 14, color: '#111827', fontSize: 16 }}
               value={signupPhoneNumber}
               onChangeText={setSignupPhoneNumber}
               keyboardType="phone-pad"
               editable={!isLoading}
             />
+
             <TextInput
               placeholder="Email Address"
               placeholderTextColor="#9ca3af"
-              style={styles.input}
+              style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 14, color: '#111827', fontSize: 16 }}
               value={signupEmail}
               onChangeText={setSignupEmail}
               keyboardType="email-address"
               autoCapitalize="none"
               editable={!isLoading}
             />
+
             {userType === 'rider' && (
-              <View style={{ gap: 8, opacity: isLoading ? 0.4 : 1 }}>
+              <View style={{ gap: 12, opacity: isLoading ? 0.4 : 1 }}>
                 <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827', marginTop: 8 }}>Vehicle Information</Text>
                 <TextInput
                   placeholder="Vehicle Brand (e.g., Honda, Yamaha, Suzuki)"
                   placeholderTextColor="#9ca3af"
-                  style={styles.input}
+                  style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 14, color: '#111827', fontSize: 16 }}
                   value={vehicleBrand}
                   onChangeText={setVehicleBrand}
                   editable={!isLoading}
@@ -2570,7 +2619,7 @@ export default function SugoScreen() {
                 <TextInput
                   placeholder="Vehicle Model (e.g., Wave 110, Click 150)"
                   placeholderTextColor="#9ca3af"
-                  style={styles.input}
+                  style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 14, color: '#111827', fontSize: 16 }}
                   value={vehicleModel}
                   onChangeText={setVehicleModel}
                   editable={!isLoading}
@@ -2578,7 +2627,7 @@ export default function SugoScreen() {
                 <TextInput
                   placeholder="Vehicle Color"
                   placeholderTextColor="#9ca3af"
-                  style={styles.input}
+                  style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 14, color: '#111827', fontSize: 16 }}
                   value={vehicleColor}
                   onChangeText={setVehicleColor}
                   editable={!isLoading}
@@ -2586,7 +2635,7 @@ export default function SugoScreen() {
                 <TextInput
                   placeholder="Plate Number (e.g., ABC-1234)"
                   placeholderTextColor="#9ca3af"
-                  style={styles.input}
+                  style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 14, color: '#111827', fontSize: 16 }}
                   value={plateNumber}
                   onChangeText={setPlateNumber}
                   autoCapitalize="characters"
@@ -2594,16 +2643,20 @@ export default function SugoScreen() {
                 />
               </View>
             )}
+
             <TouchableOpacity
-              style={[styles.primaryBtn, isLoading && { opacity: 0.6 }]}
+              style={[{ backgroundColor: '#dc2626', borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 8 }, isLoading && { opacity: 0.6 }]}
               onPress={handleSignup}
               disabled={isLoading}
             >
-              <Text style={styles.primaryText}>{isLoading ? 'Creating Account...' : 'Proceed'}</Text>
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>{isLoading ? 'Creating Account...' : 'Proceed'}</Text>
             </TouchableOpacity>
+
             <View style={{ alignItems: 'center', marginTop: 8 }}>
               <TouchableOpacity onPress={() => setCurrentScreen('login')} disabled={isLoading}>
-                <Text style={{ color: '#dc2626', fontWeight: '600', opacity: isLoading ? 0.4 : 1 }}>Already have an account? Log in</Text>
+                <Text style={{ color: '#6b7280', fontSize: 15 }}>
+                  Already have an account? <Text style={{ color: '#dc2626', fontWeight: '600' }}>Log in</Text>
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
