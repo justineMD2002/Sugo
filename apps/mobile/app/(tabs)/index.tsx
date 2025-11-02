@@ -12,6 +12,7 @@ import ProfilePictureModal from '@/components/sugo/ProfilePictureModal';
 
 import SectionCard from '@/components/sugo/SectionCard';
 import ServiceSelector from '@/components/sugo/ServiceSelector';
+import ServiceChatScreen from '@/components/sugo/screens/ServiceChatScreen';
 import SettingsModal from '@/components/sugo/SettingsModal';
 import ShareModal from '@/components/sugo/ShareModal';
 import SplashScreen from '@/components/sugo/SplashScreen';
@@ -3488,171 +3489,166 @@ export default function SugoScreen() {
               >
                 <ServiceSelector value={selectedService as any} onChange={(s) => setSelectedService(s)} />
               </Header>
-              <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
-                {selectedService === 'delivery' && (
-                  <SectionCard title="Locations" zIndex={3000}>
-                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, zIndex: 2000 }}>
-                      <Ionicons name="location" size={20} color="#dc2626" style={{ marginTop: 18 }} />
-                      <View style={{ flex: 1, zIndex: 2000 }}>
-                        <AddressAutocomplete
-                          placeholder="Pickup Location"
-                          onAddressSelect={(address) => setPickupAddress(address)}
-                          value={pickupAddress}
-                          zIndex={2000}
-                          isOpen={activeAutocomplete === 'pickup'}
-                          onFocus={() => setActiveAutocomplete('pickup')}
-                          onBlur={() => setActiveAutocomplete(null)}
-                        />
-                      </View>
-                    </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 12, zIndex: 1000 }}>
-                      <Ionicons name="location" size={20} color="#16a34a" style={{ marginTop: 18 }} />
-                      <View style={{ flex: 1, zIndex: 1000 }}>
-                        <AddressAutocomplete
-                          placeholder="Delivery Location"
-                          onAddressSelect={(address) => setDeliveryAddress(address)}
-                          value={deliveryAddress}
-                          zIndex={1000}
-                          isOpen={activeAutocomplete === 'delivery'}
-                          onFocus={() => setActiveAutocomplete('delivery')}
-                          onBlur={() => setActiveAutocomplete(null)}
-                        />
-                      </View>
-                    </View>
-                  </SectionCard>
-                )}
-                {selectedService === 'tickets' ? (
-                  <SectionCard title="Service Tickets">
-                    {serviceTickets.length === 0 ? (
-                      <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                        <Ionicons name="ticket" size={32} color="#d1d5db" />
-                        <Text style={{ color: '#6b7280', marginTop: 8 }}>No service tickets yet</Text>
-                      </View>
-                    ) : (
-                      <View style={{ gap: 8 }}>
-                        {serviceTickets.map((t) => (
-                          <TouchableOpacity key={t.id} style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 12 }} onPress={() => { setSelectedTicket(t); setShowServiceTicketDetails(true); }}>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                              <Text style={{ fontWeight: '600', color: '#111827' }}>{t.title}</Text>
-                              <View style={[{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 }, t.priority === 'high' ? { backgroundColor: '#fed7aa' } : { backgroundColor: '#dbeafe' }]}>
-                                <Text style={{ fontSize: 10, color: t.priority === 'high' ? '#b45309' : '#1e40af' }}>{t.priority.toUpperCase()}</Text>
-                              </View>
-                            </View>
-                            <Text style={{ fontSize: 12, color: '#6b7280' }}>{t.description}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
-                    <TouchableOpacity style={styles.primaryBtn} onPress={() => setShowCreateTicket(true)}>
-                      <Ionicons name="add" size={18} color="#fff" />
-                      <Text style={styles.primaryText}>New Ticket</Text>
-                    </TouchableOpacity>
-                  </SectionCard>
-                ) : (
-                  <SectionCard title={selectedService === 'delivery' ? 'Order Details' : 'Service Request'} zIndex={1}>
-                    {selectedService === 'delivery' ? (
-                      <>
-                        <TextInput
-                          placeholder="Item Description"
-                          style={[styles.input, { height: 100 }]}
-                          multiline
-                          placeholderTextColor="#9ca3af"
-                          value={itemDescription}
-                          onChangeText={setItemDescription}
-                        />
-                        <TextInput
-                          placeholder="Receiver Name"
-                          style={styles.input}
-                          placeholderTextColor="#9ca3af"
-                          value={receiverName}
-                          onChangeText={setReceiverName}
-                        />
-                        <View>
-                          <TextInput
-                            placeholder="Receiver Contact (+639XXXXXXXXX or 09XXXXXXXXX)"
-                            style={[
-                              styles.input,
-                              receiverPhone.trim() !== '' && !isValidReceiverPhone && { borderColor: '#dc2626', borderWidth: 1 }
-                            ]}
-                            placeholderTextColor="#9ca3af"
-                            value={receiverPhone}
-                            onChangeText={setReceiverPhone}
-                            keyboardType="phone-pad"
+{selectedService === 'plumbing' || selectedService === 'aircon' || selectedService === 'electrician' ? (
+                <View style={{ flex: 1 }}>
+                  <ServiceChatScreen
+                    serviceType={selectedService as 'plumbing' | 'aircon' | 'electrician'}
+                    customerId={currentUser?.id || ''}
+                    customerName={currentUser?.full_name || 'Customer'}
+                  />
+                </View>
+              ) : (
+                <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
+                  {selectedService === 'delivery' && (
+                    <SectionCard title="Locations" zIndex={3000}>
+                      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, zIndex: 2000 }}>
+                        <Ionicons name="location" size={20} color="#dc2626" style={{ marginTop: 18 }} />
+                        <View style={{ flex: 1, zIndex: 2000 }}>
+                          <AddressAutocomplete
+                            placeholder="Pickup Location"
+                            onAddressSelect={(address) => setPickupAddress(address)}
+                            value={pickupAddress}
+                            zIndex={2000}
+                            isOpen={activeAutocomplete === 'pickup'}
+                            onFocus={() => setActiveAutocomplete('pickup')}
+                            onBlur={() => setActiveAutocomplete(null)}
                           />
-                          {receiverPhone.trim() !== '' && !isValidReceiverPhone && (
-                            <Text style={{ fontSize: 12, color: '#dc2626', marginTop: 4 }}>
-                              Please enter a valid Philippine number (+639XXXXXXXXX or 09XXXXXXXXX)
-                            </Text>
-                          )}
                         </View>
-                      </>
-                    ) : (
-                      <>
-                        <TextInput placeholder="Describe the problem" style={[styles.input, { height: 120 }]} multiline placeholderTextColor="#9ca3af" />
-                        <TextInput placeholder="Service Address" style={styles.input} placeholderTextColor="#9ca3af" />
-                        <View style={{ flexDirection: 'row', gap: 12 }}>
-                          <TextInput placeholder="Preferred Date" style={[styles.input, { flex: 1 }]} placeholderTextColor="#9ca3af" />
-                          <TextInput placeholder="Preferred Time" style={[styles.input, { flex: 1 }]} placeholderTextColor="#9ca3af" />
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 12, zIndex: 1000 }}>
+                        <Ionicons name="location" size={20} color="#16a34a" style={{ marginTop: 18 }} />
+                        <View style={{ flex: 1, zIndex: 1000 }}>
+                          <AddressAutocomplete
+                            placeholder="Delivery Location"
+                            onAddressSelect={(address) => setDeliveryAddress(address)}
+                            value={deliveryAddress}
+                            zIndex={1000}
+                            isOpen={activeAutocomplete === 'delivery'}
+                            onFocus={() => setActiveAutocomplete('delivery')}
+                            onBlur={() => setActiveAutocomplete(null)}
+                          />
                         </View>
-                      </>
-                    )}
-                  </SectionCard>
-                )}
-                {selectedService === 'delivery' && (
-                  <SectionCard title="Payment Method">
-                    {['Cash', 'GCash', 'QRPH'].map((m) => {
-                      const isDisabled = m === 'GCash' || m === 'QRPH';
-                      return (
-                        <TouchableOpacity
-                          key={m}
-                          style={[styles.paymentRow, isDisabled && { opacity: 0.4 }]}
-                          onPress={() => !isDisabled && setSelectedPaymentMethod(m.toLowerCase())}
-                          disabled={isDisabled}
-                        >
-                          <View style={[styles.radio, selectedPaymentMethod === m.toLowerCase() ? { backgroundColor: '#dc2626' } : {}]} />
-                          <Text style={{ fontWeight: '600', flex: 1 }}>{m}</Text>
-                          {isDisabled && <Text style={{ fontSize: 12, color: '#6b7280' }}>(Coming Soon)</Text>}
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </SectionCard>
-                )}
-                {selectedService === 'delivery' && (
-                  <TouchableOpacity
-                    style={[
-                      styles.primaryBtn,
-                      { backgroundColor: '#dc2626' },
-                      !isBookingEnabled && { opacity: 0.5 }
-                    ]}
-                    onPress={bookDelivery}
-                    disabled={!isBookingEnabled}
-                  >
-                    <Text style={styles.primaryText}>
-                      Book Delivery{showTotalAmount ? ` - ₱${totalAmount.toFixed(2)}` : ' - ₱0.00'}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-                {selectedService === 'tickets' && (
-                  <TouchableOpacity style={styles.primaryBtn} onPress={() => setShowCreateTicket(true)}>
-                    <Text style={styles.primaryText}>Create Ticket</Text>
-                  </TouchableOpacity>
-                )}
-                {selectedService !== 'delivery' && selectedService !== 'tickets' && (
-                  <TouchableOpacity
-                    style={styles.primaryBtn}
-                    onPress={() => {
-                      setIsLoading(true);
-                      setTimeout(() => {
-                        setIsLoading(false);
-                        setCurrentOrder({ id: 'SRV-001', item: selectedService === 'plumbing' ? 'Plumbing' : selectedService === 'aircon' ? 'Aircon Repair' : 'Electrician', receiver: 'Home Service', contact: '+1 234 567 8900', rider: 'Assigned Pro', total: 85 });
-                        setCurrentScreen('home');
-                      }, 1500);
-                    }}
-                  >
-                    <Text style={styles.primaryText}>Book Service</Text>
-                  </TouchableOpacity>
-                )}
-              </ScrollView>
+                      </View>
+                    </SectionCard>
+                  )}
+                  {selectedService === 'tickets' ? (
+                    <SectionCard title="Service Tickets">
+                      {serviceTickets.length === 0 ? (
+                        <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                          <Ionicons name="ticket" size={32} color="#d1d5db" />
+                          <Text style={{ color: '#6b7280', marginTop: 8 }}>No service tickets yet</Text>
+                        </View>
+                      ) : (
+                        <View style={{ gap: 8 }}>
+                          {serviceTickets.map((t) => (
+                            <TouchableOpacity key={t.id} style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 12 }} onPress={() => { setSelectedTicket(t); setShowServiceTicketDetails(true); }}>
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                                <Text style={{ fontWeight: '600', color: '#111827' }}>{t.title}</Text>
+                                <View style={[{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 }, t.priority === 'high' ? { backgroundColor: '#fed7aa' } : { backgroundColor: '#dbeafe' }]}>
+                                  <Text style={{ fontSize: 10, color: t.priority === 'high' ? '#b45309' : '#1e40af' }}>{t.priority.toUpperCase()}</Text>
+                                </View>
+                              </View>
+                              <Text style={{ fontSize: 12, color: '#6b7280' }}>{t.description}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+                      <TouchableOpacity style={styles.primaryBtn} onPress={() => setShowCreateTicket(true)}>
+                        <Ionicons name="add" size={18} color="#fff" />
+                        <Text style={styles.primaryText}>New Ticket</Text>
+                      </TouchableOpacity>
+                    </SectionCard>
+                  ) : (
+                    <SectionCard title={selectedService === 'delivery' ? 'Order Details' : 'Service Request'} zIndex={1}>
+                      {selectedService === 'delivery' ? (
+                        <>
+                          <TextInput
+                            placeholder="Item Description"
+                            style={[styles.input, { height: 100 }]}
+                            multiline
+                            placeholderTextColor="#9ca3af"
+                            value={itemDescription}
+                            onChangeText={setItemDescription}
+                          />
+                          <TextInput
+                            placeholder="Receiver Name"
+                            style={styles.input}
+                            placeholderTextColor="#9ca3af"
+                            value={receiverName}
+                            onChangeText={setReceiverName}
+                          />
+                          <View>
+                            <TextInput
+                              placeholder="Receiver Contact (+639XXXXXXXXX or 09XXXXXXXXX)"
+                              style={[
+                                styles.input,
+                                receiverPhone.trim() !== '' && !isValidReceiverPhone && { borderColor: '#dc2626', borderWidth: 1 }
+                              ]}
+                              placeholderTextColor="#9ca3af"
+                              value={receiverPhone}
+                              onChangeText={setReceiverPhone}
+                              keyboardType="phone-pad"
+                            />
+                            {receiverPhone.trim() !== '' && !isValidReceiverPhone && (
+                              <Text style={{ fontSize: 12, color: '#dc2626', marginTop: 4 }}>
+                                Please enter a valid Philippine number (+639XXXXXXXXX or 09XXXXXXXXX)
+                              </Text>
+                            )}
+                          </View>
+                        </>
+                      ) : (
+                        <>
+                          <TextInput placeholder="Describe the problem" style={[styles.input, { height: 120 }]} multiline placeholderTextColor="#9ca3af" />
+                          <TextInput placeholder="Service Address" style={styles.input} placeholderTextColor="#9ca3af" />
+                          <View style={{ flexDirection: 'row', gap: 12 }}>
+                            <TextInput placeholder="Preferred Date" style={[styles.input, { flex: 1 }]} placeholderTextColor="#9ca3af" />
+                            <TextInput placeholder="Preferred Time" style={[styles.input, { flex: 1 }]} placeholderTextColor="#9ca3af" />
+                          </View>
+                        </>
+                      )}
+                    </SectionCard>
+                  )}
+                  {selectedService === 'delivery' && (
+                    <SectionCard title="Payment Method">
+                      {['Cash', 'GCash', 'QRPH'].map((m) => {
+                        const isDisabled = m === 'GCash' || m === 'QRPH';
+                        return (
+                          <TouchableOpacity
+                            key={m}
+                            style={[styles.paymentRow, isDisabled && { opacity: 0.4 }]}
+                            onPress={() => !isDisabled && setSelectedPaymentMethod(m.toLowerCase())}
+                            disabled={isDisabled}
+                          >
+                            <View style={[styles.radio, selectedPaymentMethod === m.toLowerCase() ? { backgroundColor: '#dc2626' } : {}]} />
+                            <Text style={{ fontWeight: '600', flex: 1 }}>{m}</Text>
+                            {isDisabled && <Text style={{ fontSize: 12, color: '#6b7280' }}>(Coming Soon)</Text>}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </SectionCard>
+                  )}
+                  {selectedService === 'delivery' && (
+                    <TouchableOpacity
+                      style={[
+                        styles.primaryBtn,
+                        { backgroundColor: '#dc2626' },
+                        !isBookingEnabled && { opacity: 0.5 }
+                      ]}
+                      onPress={bookDelivery}
+                      disabled={!isBookingEnabled}
+                    >
+                      <Text style={styles.primaryText}>
+                        Book Delivery{showTotalAmount ? ` - ₱${totalAmount.toFixed(2)}` : ' - ₱0.00'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  {selectedService === 'tickets' && (
+                    <TouchableOpacity style={styles.primaryBtn} onPress={() => setShowCreateTicket(true)}>
+                      <Text style={styles.primaryText}>Create Ticket</Text>
+                    </TouchableOpacity>
+                  )}
+                </ScrollView>
+              )}
             </>
           )}
         </>

@@ -26,13 +26,17 @@ export default function Chat({ messages, input, onChangeInput, onSend, alignRigh
   }, [messages]);
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      style={{ flex: 1 }}
+    >
       <View style={styles.container}>
         <FlatList
           ref={listRef}
           data={messages}
           keyExtractor={(m) => String(m.id)}
-          contentContainerStyle={{ padding: 12, gap: 8 }}
+          contentContainerStyle={{ padding: 12, paddingBottom: 20, gap: 8 }}
           renderItem={({ item }) => {
             const isMine = item.sender === alignRightFor;
             return (
@@ -82,7 +86,7 @@ const styles = StyleSheet.create({
   mineText: { color: '#fff' },
   theirsText: { color: '#111827' },
   time: { fontSize: 10, opacity: 0.7, marginTop: 2, color: '#6b7280' },
-  inputRow: { flexDirection: 'row', gap: 8, padding: 12, borderTopWidth: StyleSheet.hairlineWidth, borderColor: '#e5e7eb', backgroundColor: '#fff' },
+  inputRow: { flexDirection: 'row', gap: 8, padding: 12, paddingBottom: 100, borderTopWidth: StyleSheet.hairlineWidth, borderColor: '#e5e7eb', backgroundColor: '#fff' },
   input: { flex: 1, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10 },
   send: { backgroundColor: '#dc2626', paddingHorizontal: 16, borderRadius: 999, justifyContent: 'center' },
 });
