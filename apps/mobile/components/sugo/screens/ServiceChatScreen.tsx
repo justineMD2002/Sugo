@@ -231,7 +231,14 @@ export default function ServiceChatScreen({ serviceType, customerId, customerNam
         (payload) => {
           const updatedTicket = payload.new as Ticket;
           setTicket(updatedTicket);
-          setTicketClosed(updatedTicket.status === 'closed');
+          const isClosed = updatedTicket.status === 'closed';
+          setTicketClosed(isClosed);
+
+          // When ticket is closed, clear chat locally so user no longer sees old conversation
+          if (isClosed) {
+            setMessages([]);
+            setInput('');
+          }
         }
       )
       .subscribe();
