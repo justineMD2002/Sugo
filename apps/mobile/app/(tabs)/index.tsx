@@ -9,7 +9,6 @@ import LoadingOverlay from '@/components/sugo/LoadingOverlay';
 import Modal from '@/components/sugo/Modal';
 import NotificationsModal from '@/components/sugo/NotificationsModal';
 import ProfilePictureModal from '@/components/sugo/ProfilePictureModal';
-
 import SectionCard from '@/components/sugo/SectionCard';
 import ServiceSelector from '@/components/sugo/ServiceSelector';
 import ServiceChatScreen from '@/components/sugo/screens/ServiceChatScreen';
@@ -18,7 +17,6 @@ import ShareModal from '@/components/sugo/ShareModal';
 import SplashScreen from '@/components/sugo/SplashScreen';
 import Toast from '@/components/sugo/Toast';
 import { getCurrentUser, signInUserWithPhone, signOutUser, SignUpData, signUpUser, getUserProfile, UserProfile, getUserAddresses, Address, createAddress, updateAddress, deleteAddress, setDefaultAddress, CreateAddressData, UpdateAddressData, updateUserProfile, UpdateProfileData, changeUserPassword } from '@/lib/auth';
-import { uploadProfilePicture } from '@/lib/profilePictureService';
 import { supabase } from '@/lib/supabase';
 import { useOrderRealtime } from '@/hooks/use-order-realtime';
 import { notifyRiderAccepted, notifyNewMessage, notifyOrderStatusChanged, getUserNotifications, getUnreadNotificationCount, markAllNotificationsAsRead } from '@/lib/notificationService';
@@ -27,8 +25,13 @@ import { EarningsService, EarningsSummary, DailyEarnings, RiderStats } from '@/s
 import { pickImage, uploadImageToSupabase } from '@/utils/image.utils';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { Alert, ScrollView, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View, Linking, Platform, ActivityIndicator, Image, RefreshControl } from 'react-native';
+import { Alert, ScrollView, FlatList, Text, TextInput, TouchableOpacity, View, Linking, Platform, ActivityIndicator, Image, RefreshControl } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { styles } from '@/styles/styles';
+import { AddressRow } from '@/components/helpers/mobile/AddressRow';
+import { PaymentRow } from '@/components/helpers/mobile/PaymentRow';
+import { Row } from '@/components/helpers/mobile/Row';
+import { Stat } from '@/components/helpers/mobile/Stat';
 
 type Screen = 'splash' | 'login' | 'signup' | 'password' | 'otp' | 'home' | 'orders' | 'profile' | 'deliveries' | 'earnings';
 type UserType = 'customer' | 'rider';
@@ -3566,764 +3569,682 @@ export default function SugoScreen() {
               >
                 <ServiceSelector value={selectedService as any} onChange={(s) => setSelectedService(s)} />
               </Header>
-{selectedService === 'plumbing' || selectedService === 'aircon' || selectedService === 'electrician' ? (
-                <View style={{ flex: 1 }}>
-                  <ServiceChatScreen
-                    serviceType={selectedService as 'plumbing' | 'aircon' | 'electrician'}
-                    customerId={currentUser?.id || ''}
-                    customerName={currentUser?.full_name || 'Customer'}
-                  />
-                </View>
-              ) : (
-                <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
-                  {selectedService === 'delivery' && (
-                    <SectionCard title="Locations" zIndex={3000}>
-                      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, zIndex: 2000 }}>
-                        <Ionicons name="location" size={20} color="#dc2626" style={{ marginTop: 18 }} />
-                        <View style={{ flex: 1, zIndex: 2000 }}>
-                          <AddressAutocomplete
-                            placeholder="Pickup Location"
-                            onAddressSelect={(address) => setPickupAddress(address)}
-                            value={pickupAddress}
-                            zIndex={2000}
-                            isOpen={activeAutocomplete === 'pickup'}
-                            onFocus={() => setActiveAutocomplete('pickup')}
-                            onBlur={() => setActiveAutocomplete(null)}
-                          />
-                        </View>
-                      </View>
-                      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 12, zIndex: 1000 }}>
-                        <Ionicons name="location" size={20} color="#16a34a" style={{ marginTop: 18 }} />
-                        <View style={{ flex: 1, zIndex: 1000 }}>
-                          <AddressAutocomplete
-                            placeholder="Delivery Location"
-                            onAddressSelect={(address) => setDeliveryAddress(address)}
-                            value={deliveryAddress}
-                            zIndex={1000}
-                            isOpen={activeAutocomplete === 'delivery'}
-                            onFocus={() => setActiveAutocomplete('delivery')}
-                            onBlur={() => setActiveAutocomplete(null)}
-                          />
-                        </View>
-                      </View>
-                    </SectionCard>
-                  )}
-                  {selectedService === 'tickets' ? (
-                    <SectionCard title="Service Tickets">
-                      {serviceTickets.length === 0 ? (
-                        <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                          <Ionicons name="ticket" size={32} color="#d1d5db" />
-                          <Text style={{ color: '#6b7280', marginTop: 8 }}>No service tickets yet</Text>
-                        </View>
-                      ) : (
-                        <View style={{ gap: 8 }}>
-                          {serviceTickets.map((t) => (
-                            <TouchableOpacity key={t.id} style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 12 }} onPress={() => { setSelectedTicket(t); setShowServiceTicketDetails(true); }}>
-                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                                <Text style={{ fontWeight: '600', color: '#111827' }}>{t.title}</Text>
-                                <View style={[{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 }, t.priority === 'high' ? { backgroundColor: '#fed7aa' } : { backgroundColor: '#dbeafe' }]}>
-                                  <Text style={{ fontSize: 10, color: t.priority === 'high' ? '#b45309' : '#1e40af' }}>{t.priority.toUpperCase()}</Text>
-                                </View>
-                              </View>
-                              <Text style={{ fontSize: 12, color: '#6b7280' }}>{t.description}</Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      )}
-                      <TouchableOpacity style={styles.primaryBtn} onPress={() => setShowCreateTicket(true)}>
-                        <Ionicons name="add" size={18} color="#fff" />
-                        <Text style={styles.primaryText}>New Ticket</Text>
-                      </TouchableOpacity>
-                    </SectionCard>
-                  ) : (
-                    <SectionCard title={selectedService === 'delivery' ? 'Order Details' : 'Service Request'} zIndex={1}>
-                      {selectedService === 'delivery' ? (
-                        <>
-                          <TextInput
-                            placeholder="Item Description"
-                            style={[styles.input, { height: 100 }]}
-                            multiline
-                            placeholderTextColor="#9ca3af"
-                            value={itemDescription}
-                            onChangeText={setItemDescription}
-                          />
-                          <TextInput
-                            placeholder="Receiver Name"
-                            style={styles.input}
-                            placeholderTextColor="#9ca3af"
-                            value={receiverName}
-                            onChangeText={setReceiverName}
-                          />
-                          <View>
-                            <TextInput
-                              placeholder="Receiver Contact (+639XXXXXXXXX or 09XXXXXXXXX)"
-                              style={[
-                                styles.input,
-                                receiverPhone.trim() !== '' && !isValidReceiverPhone && { borderColor: '#dc2626', borderWidth: 1 }
-                              ]}
-                              placeholderTextColor="#9ca3af"
-                              value={receiverPhone}
-                              onChangeText={setReceiverPhone}
-                              keyboardType="phone-pad"
+  {selectedService === 'plumbing' || selectedService === 'aircon' || selectedService === 'electrician' ? (
+                  <View style={{ flex: 1 }}>
+                    <ServiceChatScreen
+                      serviceType={selectedService as 'plumbing' | 'aircon' | 'electrician'}
+                      customerId={currentUser?.id || ''}
+                      customerName={currentUser?.full_name || 'Customer'}
+                    />
+                  </View>
+                ) : (
+                  <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
+                    {selectedService === 'delivery' && (
+                      <SectionCard title="Locations" zIndex={3000}>
+                        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, zIndex: 2000 }}>
+                          <Ionicons name="location" size={20} color="#dc2626" style={{ marginTop: 18 }} />
+                          <View style={{ flex: 1, zIndex: 2000 }}>
+                            <AddressAutocomplete
+                              placeholder="Pickup Location"
+                              onAddressSelect={(address) => setPickupAddress(address)}
+                              value={pickupAddress}
+                              zIndex={2000}
+                              isOpen={activeAutocomplete === 'pickup'}
+                              onFocus={() => setActiveAutocomplete('pickup')}
+                              onBlur={() => setActiveAutocomplete(null)}
                             />
-                            {receiverPhone.trim() !== '' && !isValidReceiverPhone && (
-                              <Text style={{ fontSize: 12, color: '#dc2626', marginTop: 4 }}>
-                                Please enter a valid Philippine number (+639XXXXXXXXX or 09XXXXXXXXX)
-                              </Text>
-                            )}
                           </View>
-                        </>
-                      ) : (
-                        <>
-                          <TextInput placeholder="Describe the problem" style={[styles.input, { height: 120 }]} multiline placeholderTextColor="#9ca3af" />
-                          <TextInput placeholder="Service Address" style={styles.input} placeholderTextColor="#9ca3af" />
-                          <View style={{ flexDirection: 'row', gap: 12 }}>
-                            <TextInput placeholder="Preferred Date" style={[styles.input, { flex: 1 }]} placeholderTextColor="#9ca3af" />
-                            <TextInput placeholder="Preferred Time" style={[styles.input, { flex: 1 }]} placeholderTextColor="#9ca3af" />
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 12, zIndex: 1000 }}>
+                          <Ionicons name="location" size={20} color="#16a34a" style={{ marginTop: 18 }} />
+                          <View style={{ flex: 1, zIndex: 1000 }}>
+                            <AddressAutocomplete
+                              placeholder="Delivery Location"
+                              onAddressSelect={(address) => setDeliveryAddress(address)}
+                              value={deliveryAddress}
+                              zIndex={1000}
+                              isOpen={activeAutocomplete === 'delivery'}
+                              onFocus={() => setActiveAutocomplete('delivery')}
+                              onBlur={() => setActiveAutocomplete(null)}
+                            />
                           </View>
-                        </>
-                      )}
-                    </SectionCard>
-                  )}
-                  {selectedService === 'delivery' && (
-                    <SectionCard title="Payment Method">
-                      {['Cash', 'GCash', 'QRPH'].map((m) => {
-                        const isDisabled = m === 'GCash' || m === 'QRPH';
-                        return (
-                          <TouchableOpacity
-                            key={m}
-                            style={[styles.paymentRow, isDisabled && { opacity: 0.4 }]}
-                            onPress={() => !isDisabled && setSelectedPaymentMethod(m.toLowerCase())}
-                            disabled={isDisabled}
-                          >
-                            <View style={[styles.radio, selectedPaymentMethod === m.toLowerCase() ? { backgroundColor: '#dc2626' } : {}]} />
-                            <Text style={{ fontWeight: '600', flex: 1 }}>{m}</Text>
-                            {isDisabled && <Text style={{ fontSize: 12, color: '#6b7280' }}>(Coming Soon)</Text>}
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </SectionCard>
-                  )}
-                  {selectedService === 'delivery' && (
-                    <TouchableOpacity
-                      style={[
-                        styles.primaryBtn,
-                        { backgroundColor: '#dc2626' },
-                        !isBookingEnabled && { opacity: 0.5 }
-                      ]}
-                      onPress={bookDelivery}
-                      disabled={!isBookingEnabled}
-                    >
-                      <Text style={styles.primaryText}>
-                        Book Delivery{showTotalAmount ? ` - ₱${totalAmount.toFixed(2)}` : ' - ₱0.00'}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                  {selectedService === 'tickets' && (
-                    <TouchableOpacity style={styles.primaryBtn} onPress={() => setShowCreateTicket(true)}>
-                      <Text style={styles.primaryText}>Create Ticket</Text>
-                    </TouchableOpacity>
-                  )}
-                </ScrollView>
-              )}
-            </>
-          )}
-        </>
-      )}
-
-      {/* Modals */}
-      <Modal visible={showCompleteConfirmation} onClose={() => setShowCompleteConfirmation(false)} title={`Complete ${currentOrder ? 'Order' : 'Delivery'}?`}>
-        <Text style={{ color: '#6b7280', marginBottom: 16 }}>Are you sure you want to {currentOrder ? 'mark this order as delivered' : 'complete this delivery'}?</Text>
-        <View style={{ gap: 8 }}>
-          <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: '#16a34a' }]} onPress={completeOrder}>
-            <Text style={styles.primaryText}>Yes, Complete</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryBtn} onPress={() => setShowCompleteConfirmation(false)}>
-            <Text style={{ color: '#6b7280', fontWeight: '600' }}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
-
-      <Modal visible={showRatingModal} onClose={closeRatingModal} title="Order Completed!">
-        <View style={{ gap: 12, marginBottom: 16 }}>
-          {/* Order Completion Message */}
-          <View style={{ backgroundColor: '#dcfce7', padding: 12, borderRadius: 8, marginBottom: 8 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Ionicons name="checkmark-circle" size={24} color="#16a34a" />
-              <Text style={{ color: '#16a34a', fontWeight: '600', flex: 1 }}>
-                Your order has been completed!
-              </Text>
-            </View>
-          </View>
-
-          {/* Rider Info */}
-          {completedOrderRider && (
-            <View style={{ marginBottom: 8 }}>
-              <Text style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Delivered by</Text>
-              <Text style={{ fontWeight: '600', fontSize: 16 }}>{completedOrderRider.name}</Text>
-              {completedOrderRider.vehicle_info && (
-                <Text style={{ fontSize: 12, color: '#6b7280' }}>{completedOrderRider.vehicle_info}</Text>
-              )}
-            </View>
-          )}
-
-          {/* Rating Section */}
-          <Text style={{ color: '#6b7280', fontWeight: '500' }}>Rate your delivery experience</Text>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 8 }}>
-            {[1, 2, 3, 4, 5].map((star) => (
-              <TouchableOpacity key={star} onPress={() => setCurrentRating(star)}>
-                <Ionicons name={star <= currentRating ? 'star' : 'star-outline'} size={36} color="#fbbf24" />
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Comment Input */}
-          <TextInput
-            placeholder="Share your experience (optional)"
-            style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
-            multiline
-            placeholderTextColor="#9ca3af"
-            value={ratingComment}
-            onChangeText={setRatingComment}
-          />
-
-          {/* Submit Button */}
-          <TouchableOpacity
-            style={[styles.primaryBtn, { backgroundColor: '#dc2626' }]}
-            onPress={submitRating}
-            disabled={!currentRating}
-          >
-            <Text style={styles.primaryText}>Submit Rating</Text>
-          </TouchableOpacity>
-
-          {/* Skip Button */}
-          <TouchableOpacity
-            style={styles.secondaryBtn}
-            onPress={closeRatingModal}
-          >
-            <Text style={{ color: '#6b7280', fontWeight: '600', textAlign: 'center' }}>Skip for now</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
-
-      <Modal visible={showPaymentModal} onClose={() => setShowPaymentModal(false)} title="Payment Method">
-        <View style={{ gap: 12, marginBottom: 16 }}>
-          {['Cash', 'GCash', 'QRPH'].map((m) => {
-            const isDisabled = m === 'GCash' || m === 'QRPH';
-            return (
-              <TouchableOpacity
-                key={m}
-                style={[styles.paymentRow, { paddingVertical: 12, opacity: isDisabled ? 0.4 : 1 }]}
-                onPress={() => !isDisabled && setSelectedPaymentMethod(m.toLowerCase())}
-                disabled={isDisabled}
-              >
-                <View style={[styles.radio, selectedPaymentMethod === m.toLowerCase() ? { backgroundColor: '#dc2626' } : {}]} />
-                <Text style={{ fontWeight: '600', flex: 1 }}>{m}</Text>
-                {isDisabled && <Text style={{ fontSize: 12, color: '#6b7280' }}>(Coming Soon)</Text>}
-              </TouchableOpacity>
-            );
-          })}
-          <SectionCard>
-            <Text style={{ fontWeight: '600', marginBottom: 8 }}>Payment Summary</Text>
-            <Row label="Base Amount" value={`₱${BASE_AMOUNT.toFixed(2)}`} />
-            <Row label="Service Fee" value={`₱${SERVICE_FEE.toFixed(2)}`} />
-            <Row label="Total Amount" value={`₱${totalAmount.toFixed(2)}`} valueTint="#dc2626" />
-          </SectionCard>
-          <TouchableOpacity
-            style={[
-              styles.primaryBtn,
-              { backgroundColor: '#dc2626' },
-              !isBookingEnabled && { opacity: 0.5 }
-            ]}
-            onPress={() => {
-              setShowPaymentModal(false);
-              bookDelivery();
-            }}
-            disabled={!isBookingEnabled}
-          >
-            <Text style={styles.primaryText}>
-              Book Delivery{showTotalAmount ? ` - ₱${totalAmount.toFixed(2)}` : ' - ₱0.00'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
-
-      <Modal visible={showOrderTracking} onClose={() => setShowOrderTracking(false)} title="Track Your Order">
-        <View style={{ gap: 12 }}>
-          <View style={{ backgroundColor: '#fee2e2', borderRadius: 12, padding: 12, gap: 8 }}>
-            <Text style={{ fontWeight: '600', color: '#111827' }}>Order #{currentOrder?.order_number || currentOrder?.id || 'ORD-001'}</Text>
-            <Text style={{ color: '#6b7280', fontSize: 12 }}>Status: {currentOrder?.status || 'Pending'}</Text>
-            {currentOrder?.rider_name && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Ionicons name="person" size={14} color="#dc2626" />
-                <Text style={{ color: '#6b7280', fontSize: 12 }}>
-                  Rider: {currentOrder.rider_name}
-                </Text>
-              </View>
+                        </View>
+                      </SectionCard>
+                    )}
+                    {selectedService === 'tickets' ? (
+                      <SectionCard title="Service Tickets">
+                        {serviceTickets.length === 0 ? (
+                          <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                            <Ionicons name="ticket" size={32} color="#d1d5db" />
+                            <Text style={{ color: '#6b7280', marginTop: 8 }}>No service tickets yet</Text>
+                          </View>
+                        ) : (
+                          <View style={{ gap: 8 }}>
+                            {serviceTickets.map((t) => (
+                              <TouchableOpacity key={t.id} style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 12 }} onPress={() => { setSelectedTicket(t); setShowServiceTicketDetails(true); }}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                                  <Text style={{ fontWeight: '600', color: '#111827' }}>{t.title}</Text>
+                                  <View style={[{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 }, t.priority === 'high' ? { backgroundColor: '#fed7aa' } : { backgroundColor: '#dbeafe' }]}>
+                                    <Text style={{ fontSize: 10, color: t.priority === 'high' ? '#b45309' : '#1e40af' }}>{t.priority.toUpperCase()}</Text>
+                                  </View>
+                                </View>
+                                <Text style={{ fontSize: 12, color: '#6b7280' }}>{t.description}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        )}
+                        <TouchableOpacity style={styles.primaryBtn} onPress={() => setShowCreateTicket(true)}>
+                          <Ionicons name="add" size={18} color="#fff" />
+                          <Text style={styles.primaryText}>New Ticket</Text>
+                        </TouchableOpacity>
+                      </SectionCard>
+                    ) : (
+                      <SectionCard title={selectedService === 'delivery' ? 'Order Details' : 'Service Request'} zIndex={1}>
+                        {selectedService === 'delivery' ? (
+                          <>
+                            <TextInput
+                              placeholder="Item Description"
+                              style={[styles.input, { height: 100 }]}
+                              multiline
+                              placeholderTextColor="#9ca3af"
+                              value={itemDescription}
+                              onChangeText={setItemDescription}
+                            />
+                            <TextInput
+                              placeholder="Receiver Name"
+                              style={styles.input}
+                              placeholderTextColor="#9ca3af"
+                              value={receiverName}
+                              onChangeText={setReceiverName}
+                            />
+                            <View>
+                              <TextInput
+                                placeholder="Receiver Contact (+639XXXXXXXXX or 09XXXXXXXXX)"
+                                style={[
+                                  styles.input,
+                                  receiverPhone.trim() !== '' && !isValidReceiverPhone && { borderColor: '#dc2626', borderWidth: 1 }
+                                ]}
+                                placeholderTextColor="#9ca3af"
+                                value={receiverPhone}
+                                onChangeText={setReceiverPhone}
+                                keyboardType="phone-pad"
+                              />
+                              {receiverPhone.trim() !== '' && !isValidReceiverPhone && (
+                                <Text style={{ fontSize: 12, color: '#dc2626', marginTop: 4 }}>
+                                  Please enter a valid Philippine number (+639XXXXXXXXX or 09XXXXXXXXX)
+                                </Text>
+                              )}
+                            </View>
+                          </>
+                        ) : (
+                          <>
+                            <TextInput placeholder="Describe the problem" style={[styles.input, { height: 120 }]} multiline placeholderTextColor="#9ca3af" />
+                            <TextInput placeholder="Service Address" style={styles.input} placeholderTextColor="#9ca3af" />
+                            <View style={{ flexDirection: 'row', gap: 12 }}>
+                              <TextInput placeholder="Preferred Date" style={[styles.input, { flex: 1 }]} placeholderTextColor="#9ca3af" />
+                              <TextInput placeholder="Preferred Time" style={[styles.input, { flex: 1 }]} placeholderTextColor="#9ca3af" />
+                            </View>
+                          </>
+                        )}
+                      </SectionCard>
+                    )}
+                    {selectedService === 'delivery' && (
+                      <SectionCard title="Payment Method">
+                        {['Cash', 'GCash', 'QRPH'].map((m) => {
+                          const isDisabled = m === 'GCash' || m === 'QRPH';
+                          return (
+                            <TouchableOpacity
+                              key={m}
+                              style={[styles.paymentRow, isDisabled && { opacity: 0.4 }]}
+                              onPress={() => !isDisabled && setSelectedPaymentMethod(m.toLowerCase())}
+                              disabled={isDisabled}
+                            >
+                              <View style={[styles.radio, selectedPaymentMethod === m.toLowerCase() ? { backgroundColor: '#dc2626' } : {}]} />
+                              <Text style={{ fontWeight: '600', flex: 1 }}>{m}</Text>
+                              {isDisabled && <Text style={{ fontSize: 12, color: '#6b7280' }}>(Coming Soon)</Text>}
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </SectionCard>
+                    )}
+                    {selectedService === 'delivery' && (
+                      <TouchableOpacity
+                        style={[
+                          styles.primaryBtn,
+                          { backgroundColor: '#dc2626' },
+                          !isBookingEnabled && { opacity: 0.5 }
+                        ]}
+                        onPress={bookDelivery}
+                        disabled={!isBookingEnabled}
+                      >
+                        <Text style={styles.primaryText}>
+                          Book Delivery{showTotalAmount ? ` - ₱${totalAmount.toFixed(2)}` : ' - ₱0.00'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    {selectedService === 'tickets' && (
+                      <TouchableOpacity style={styles.primaryBtn} onPress={() => setShowCreateTicket(true)}>
+                        <Text style={styles.primaryText}>Create Ticket</Text>
+                      </TouchableOpacity>
+                    )}
+                  </ScrollView>
+                )}
+              </>
             )}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Ionicons name="navigate" size={14} color="#dc2626" />
-              <Text style={{ color: '#6b7280', fontSize: 12 }}>
-                {currentOrder?.rider_name ? 'Rider is on the way' : 'Looking for available rider...'}
-              </Text>
-            </View>
-          </View>
-          {[
-            { title: 'Order Confirmed', completed: currentOrder?.status !== 'pending', icon: 'checkmark-circle' },
-            { title: 'Rider Assigned', completed: deliveryStatus?.is_assigned || false, icon: 'person' },
-            { title: 'Rider Accepted', completed: deliveryStatus?.is_accepted || false, icon: 'thumbs-up' },
-            { title: 'Order Picked Up', completed: deliveryStatus?.is_picked_up || false, icon: 'cube' },
-            { title: 'Delivered', completed: deliveryStatus?.is_completed || false, icon: 'checkmark-done-circle' },
-          ].map((step, i) => (
-            <View key={i} style={{ flexDirection: 'row', gap: 8 }}>
-              <View style={{ width: 24, height: 24, borderRadius: 999, backgroundColor: step.completed ? '#16a34a' : '#e5e7eb', alignItems: 'center', justifyContent: 'center' }}>
-                {step.completed && <Ionicons name="checkmark" size={14} color="#fff" />}
-              </View>
-              <View style={{ flex: 1, justifyContent: 'center' }}>
-                <Text style={{ fontWeight: step.completed ? '600' : '400', color: step.completed ? '#111827' : '#6b7280' }}>{step.title}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-      </Modal>
-
-      <Modal visible={showEditProfile} onClose={() => setShowEditProfile(false)} title="Edit Profile">
-        <View style={{ gap: 12, marginBottom: 16 }}>
-          <TextInput
-            placeholder="Full Name"
-            value={editProfileName}
-            onChangeText={setEditProfileName}
-            style={styles.input}
-            placeholderTextColor="#9ca3af"
-          />
-          <TextInput
-            placeholder="Email"
-            value={editProfileEmail}
-            onChangeText={setEditProfileEmail}
-            style={styles.input}
-            placeholderTextColor="#9ca3af"
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-          <TouchableOpacity style={styles.primaryBtn} onPress={handleUpdateProfile}>
-            <Text style={styles.primaryText}>Save Changes</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
-
-      <Modal visible={showChangePassword} onClose={() => setShowChangePassword(false)} title="Change Password">
-        <View style={{ gap: 12, marginBottom: 16 }}>
-          <TextInput
-            placeholder="Current Password"
-            value={currentPassword}
-            onChangeText={setCurrentPassword}
-            secureTextEntry
-            style={styles.input}
-            placeholderTextColor="#9ca3af"
-          />
-          <TextInput
-            placeholder="New Password"
-            value={newPassword}
-            onChangeText={setNewPassword}
-            secureTextEntry
-            style={styles.input}
-            placeholderTextColor="#9ca3af"
-          />
-          <TextInput
-            placeholder="Confirm New Password"
-            value={confirmNewPassword}
-            onChangeText={setConfirmNewPassword}
-            secureTextEntry
-            style={styles.input}
-            placeholderTextColor="#9ca3af"
-          />
-          <TouchableOpacity style={styles.primaryBtn} onPress={handleChangePassword}>
-            <Text style={styles.primaryText}>Change Password</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
-
-      <Modal visible={showLogoutConfirm} onClose={() => setShowLogoutConfirm(false)} title="Logout">
-        <Text style={{ color: '#6b7280', marginBottom: 16 }}>Are you sure you want to logout?</Text>
-        <View style={{ gap: 8 }}>
-          <TouchableOpacity style={styles.primaryBtn} onPress={handleLogout}>
-            <Text style={styles.primaryText}>Yes, Logout</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryBtn} onPress={() => setShowLogoutConfirm(false)}>
-            <Text style={{ color: '#6b7280', fontWeight: '600' }}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
-
-      <Modal visible={showServiceTicketDetails} onClose={() => setShowServiceTicketDetails(false)} title={selectedTicket?.title}>
-        {selectedTicket && (
-          <View style={{ gap: 8 }}>
-            <Row label="Status" value={selectedTicket.status.toUpperCase()} />
-            <Row label="Priority" value={selectedTicket.priority.toUpperCase()} />
-            <Row label="Description" value={selectedTicket.description} />
-            <Row label="Location" value={selectedTicket.location} />
-            {selectedTicket.assignedToName && <Row label="Assigned To" value={selectedTicket.assignedToName} />}
-          </View>
+          </>
         )}
-      </Modal>
 
-      <Modal visible={showCreateTicket} onClose={() => setShowCreateTicket(false)} title="Create Service Ticket">
-        <View style={{ gap: 12, marginBottom: 16 }}>
-          <TextInput placeholder="Title" style={styles.input} placeholderTextColor="#9ca3af" />
-          <TextInput placeholder="Description" style={[styles.input, { height: 100 }]} multiline placeholderTextColor="#9ca3af" />
-          <TextInput placeholder="Priority" style={styles.input} placeholderTextColor="#9ca3af" />
-          <TextInput placeholder="Location" style={styles.input} placeholderTextColor="#9ca3af" />
-          <TouchableOpacity style={styles.primaryBtn}>
-            <Text style={styles.primaryText}>Create Ticket</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
-
-      {/* Add Notifications Modal */}
-      <Modal visible={showNotifications} onClose={() => setShowNotifications(false)}>
-        <NotificationsModal
-          notifications={notifications}
-          onClose={() => setShowNotifications(false)}
-          onMarkAllAsRead={async () => {
-            if (currentUser?.id) {
-              const success = await markAllNotificationsAsRead(currentUser.id);
-              if (success) {
-                // Update all notifications to mark as read in local state
-                setNotifications((prev) =>
-                  prev.map((notif) => ({ ...notif, is_read: true }))
-                );
-                // Update unread count to 0
-                setUnreadNotificationCount(0);
-                showToastMessage('All notifications marked as read', 'success');
-              } else {
-                showToastMessage('Failed to mark notifications as read', 'error');
-              }
-            }
-          }}
-        />
-      </Modal>
-
-      {/* Add Call Options Modal */}
-      <Modal visible={showCallOptions} onClose={() => setShowCallOptions(false)}>
-        <CallOptionsModal
-          onClose={() => setShowCallOptions(false)}
-          onViberPress={async () => {
-            setShowCallOptions(false);
-
-            // Clean phone number (remove spaces, dashes, etc.)
-            const cleanNumber = callNumber.replace(/[\s\-\(\)]/g, '');
-
-            // Viber deep link format: viber://contact?number={phone_number}
-            const viberUrl = `viber://contact?number=${cleanNumber}`;
-
-            try {
-              const canOpen = await Linking.canOpenURL(viberUrl);
-              if (canOpen) {
-                await Linking.openURL(viberUrl);
-                showToastMessage(`Opening Viber to call ${callNumber}`, 'info');
-              } else {
-                // Fallback: Open Viber app or show error
-                const viberAppUrl = Platform.OS === 'ios'
-                  ? 'viber://'
-                  : 'viber://forward?text=';
-
-                const canOpenApp = await Linking.canOpenURL(viberAppUrl);
-                if (canOpenApp) {
-                  await Linking.openURL(viberAppUrl);
-                  showToastMessage('Viber opened. Please search for the contact manually.', 'info');
-                } else {
-                  showToastMessage('Viber is not installed on this device', 'error');
-                }
-              }
-            } catch (error) {
-              console.error('Error opening Viber:', error);
-              showToastMessage('Failed to open Viber', 'error');
-            }
-          }}
-          onPhonePress={async () => {
-            setShowCallOptions(false);
-
-            // Clean phone number
-            const cleanNumber = callNumber.replace(/[\s\-\(\)]/g, '');
-
-            // Phone dialer URL
-            const phoneUrl = `tel:${cleanNumber}`;
-
-            try {
-              const canOpen = await Linking.canOpenURL(phoneUrl);
-              if (canOpen) {
-                await Linking.openURL(phoneUrl);
-                showToastMessage(`Calling ${callNumber}...`, 'info');
-              } else {
-                showToastMessage('Unable to make phone calls on this device', 'error');
-              }
-            } catch (error) {
-              console.error('Error making phone call:', error);
-              showToastMessage('Failed to initiate call', 'error');
-            }
-          }}
-        />
-      </Modal>
-
-      {/* Filter Modal */}
-      <Modal visible={showFilter} onClose={() => setShowFilter(false)}>
-        <FilterModal
-          onClose={() => setShowFilter(false)}
-          onApply={handleFilterApply}
-          onReset={handleResetFilters}
-          currentFilters={activeFilters}
-        />
-      </Modal>
-
-      {/* Help Modal */}
-      <Modal visible={showHelp} onClose={() => setShowHelp(false)}>
-        <HelpModal onClose={() => setShowHelp(false)} />
-      </Modal>
-
-      {/* Settings Modal */}
-      <Modal visible={showSettings} onClose={() => setShowSettings(false)}>
-        <SettingsModal
-          onClose={() => setShowSettings(false)}
-          onEditProfile={() => {
-            setShowSettings(false);
-            openEditProfileModal();
-          }}
-          onChangePassword={() => {
-            setShowSettings(false);
-            setShowChangePassword(true);
-          }}
-          onHelp={() => {
-            setShowSettings(false);
-            setShowHelp(true);
-          }}
-          onLogout={() => {
-            setShowSettings(false);
-            setShowLogoutConfirm(true);
-          }}
-        />
-      </Modal>
-
-      {/* Profile Picture Modal */}
-      <ProfilePictureModal
-        visible={showProfilePictureModal}
-        onClose={() => setShowProfilePictureModal(false)}
-        imageUrl={userProfile?.avatar_url}
-        onReplace={handleProfilePictureUpload}
-        isLoading={isUploadingProfilePicture}
-      />
-
-      {/* Share Modal */}
-      <Modal visible={showShare} onClose={() => setShowShare(false)}>
-        <ShareModal onClose={() => setShowShare(false)} orderNumber={currentOrder?.order_number || currentOrder?.id} />
-      </Modal>
-
-      {/* Finding Rider Modal - Only for customers */}
-      {userType === 'customer' && (
-        <Modal visible={showFindingRider} onClose={() => {}} title="Finding Rider">
-          <View style={{ alignItems: 'center', gap: 16, paddingVertical: 20 }}>
-            <View style={{ width: 80, height: 80, borderRadius: 999, backgroundColor: '#fee2e2', alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons name="search" size={36} color="#dc2626" />
-            </View>
-            <View style={{ alignItems: 'center', gap: 8 }}>
-              <Text style={{ fontSize: 18, fontWeight: '700', color: '#111827', textAlign: 'center' }}>
-                Looking for available riders...
-              </Text>
-              <Text style={{ color: '#6b7280', textAlign: 'center' }}>
-                Please wait while we find the best rider for your delivery
-              </Text>
-            </View>
-            <View style={{ width: '100%', backgroundColor: '#f3f4f6', borderRadius: 12, padding: 16, gap: 8 }}>
-              <Row label="Order Number" value={currentOrder?.order_number || 'N/A'} />
-              <Row label="Pickup" value={currentOrder?.pickup_address || 'N/A'} />
-              <Row label="Delivery" value={currentOrder?.delivery_address || 'N/A'} />
-              <Row label="Total Amount" value={`₱${(currentOrder?.total_amount || 0).toFixed(2)}`} valueTint="#dc2626" />
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: '#dc2626' }} />
-              <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: '#fca5a5' }} />
-              <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: '#fee2e2' }} />
-            </View>
-
-            <View style={{ alignItems: 'center', paddingVertical: 8 }}>
-              <Text style={{ fontSize: 12, color: '#6b7280' }}>
-                📡 Waiting for rider to accept (real-time)
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.secondaryBtn, { width: '100%', borderColor: '#dc2626' }]}
-              onPress={cancelOrder}
-              disabled={isLoading}
-            >
-              <Ionicons name="close-circle" size={18} color="#dc2626" />
-              <Text style={{ color: '#dc2626', fontWeight: '600' }}>Cancel Order</Text>
+        {/* Modals */}
+        <Modal visible={showCompleteConfirmation} onClose={() => setShowCompleteConfirmation(false)} title={`Complete ${currentOrder ? 'Order' : 'Delivery'}?`}>
+          <Text style={{ color: '#6b7280', marginBottom: 16 }}>Are you sure you want to {currentOrder ? 'mark this order as delivered' : 'complete this delivery'}?</Text>
+          <View style={{ gap: 8 }}>
+            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: '#16a34a' }]} onPress={completeOrder}>
+              <Text style={styles.primaryText}>Yes, Complete</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryBtn} onPress={() => setShowCompleteConfirmation(false)}>
+              <Text style={{ color: '#6b7280', fontWeight: '600' }}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </Modal>
-      )}
 
-      {/* Add Address Modal */}
-      <Modal visible={showAddAddress} onClose={() => setShowAddAddress(false)} title="Add New Address">
-        <View style={{ gap: 12, marginBottom: 16 }}>
-          <TextInput
-            placeholder="Address Name (e.g., Home, Office)"
-            style={styles.input}
-            value={addressName}
-            onChangeText={setAddressName}
-            placeholderTextColor="#9ca3af"
-          />
-          <TextInput
-            placeholder="Full Address"
-            style={[styles.input, { height: 100 }]}
-            value={fullAddress}
-            onChangeText={setFullAddress}
-            multiline
-            placeholderTextColor="#9ca3af"
-          />
-          <TouchableOpacity
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 }}
-            onPress={() => setIsDefaultAddress(!isDefaultAddress)}
-          >
-            <View style={[styles.checkbox, isDefaultAddress && { backgroundColor: '#dc2626' }]} />
-            <Text style={{ color: '#111827', fontSize: 14 }}>Set as default address</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.primaryBtn} onPress={handleAddAddress}>
-            <Text style={styles.primaryText}>Add Address</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
+        <Modal visible={showRatingModal} onClose={closeRatingModal} title="Order Completed!">
+          <View style={{ gap: 12, marginBottom: 16 }}>
+            {/* Order Completion Message */}
+            <View style={{ backgroundColor: '#dcfce7', padding: 12, borderRadius: 8, marginBottom: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="checkmark-circle" size={24} color="#16a34a" />
+                <Text style={{ color: '#16a34a', fontWeight: '600', flex: 1 }}>
+                  Your order has been completed!
+                </Text>
+              </View>
+            </View>
 
-      {/* Edit Address Modal */}
-      <Modal visible={showEditAddress} onClose={() => setShowEditAddress(false)} title="Edit Address">
-        <View style={{ gap: 12, marginBottom: 16 }}>
-          <TextInput
-            placeholder="Address Name (e.g., Home, Office)"
-            style={styles.input}
-            value={addressName}
-            onChangeText={setAddressName}
-            placeholderTextColor="#9ca3af"
-          />
-          <TextInput
-            placeholder="Full Address"
-            style={[styles.input, { height: 100 }]}
-            value={fullAddress}
-            onChangeText={setFullAddress}
-            multiline
-            placeholderTextColor="#9ca3af"
-          />
-          <TouchableOpacity
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 }}
-            onPress={() => setIsDefaultAddress(!isDefaultAddress)}
-          >
-            <View style={[styles.checkbox, isDefaultAddress && { backgroundColor: '#dc2626' }]} />
-            <Text style={{ color: '#111827', fontSize: 14 }}>Set as default address</Text>
-          </TouchableOpacity>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <TouchableOpacity style={[styles.primaryBtn, { flex: 1, backgroundColor: '#dc2626' }]} onPress={handleUpdateAddress}>
-              <Ionicons name="checkmark" size={18} color="#fff" />
-              <Text style={styles.primaryText}>Save Changes</Text>
-            </TouchableOpacity>
+            {/* Rider Info */}
+            {completedOrderRider && (
+              <View style={{ marginBottom: 8 }}>
+                <Text style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Delivered by</Text>
+                <Text style={{ fontWeight: '600', fontSize: 16 }}>{completedOrderRider.name}</Text>
+                {completedOrderRider.vehicle_info && (
+                  <Text style={{ fontSize: 12, color: '#6b7280' }}>{completedOrderRider.vehicle_info}</Text>
+                )}
+              </View>
+            )}
+
+            {/* Rating Section */}
+            <Text style={{ color: '#6b7280', fontWeight: '500' }}>Rate your delivery experience</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 8 }}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <TouchableOpacity key={star} onPress={() => setCurrentRating(star)}>
+                  <Ionicons name={star <= currentRating ? 'star' : 'star-outline'} size={36} color="#fbbf24" />
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Comment Input */}
+            <TextInput
+              placeholder="Share your experience (optional)"
+              style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+              multiline
+              placeholderTextColor="#9ca3af"
+              value={ratingComment}
+              onChangeText={setRatingComment}
+            />
+
+            {/* Submit Button */}
             <TouchableOpacity
-              style={[styles.primaryBtn, { flex: 1, backgroundColor: '#ef4444' }]}
-              onPress={handleDeleteAddress}
+              style={[styles.primaryBtn, { backgroundColor: '#dc2626' }]}
+              onPress={submitRating}
+              disabled={!currentRating}
             >
-              <Ionicons name="trash" size={18} color="#fff" />
-              <Text style={styles.primaryText}>Delete</Text>
+              <Text style={styles.primaryText}>Submit Rating</Text>
+            </TouchableOpacity>
+
+            {/* Skip Button */}
+            <TouchableOpacity
+              style={styles.secondaryBtn}
+              onPress={closeRatingModal}
+            >
+              <Text style={{ color: '#6b7280', fontWeight: '600', textAlign: 'center' }}>Skip for now</Text>
             </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+
+        <Modal visible={showPaymentModal} onClose={() => setShowPaymentModal(false)} title="Payment Method">
+          <View style={{ gap: 12, marginBottom: 16 }}>
+            {['Cash', 'GCash', 'QRPH'].map((m) => {
+              const isDisabled = m === 'GCash' || m === 'QRPH';
+              return (
+                <TouchableOpacity
+                  key={m}
+                  style={[styles.paymentRow, { paddingVertical: 12, opacity: isDisabled ? 0.4 : 1 }]}
+                  onPress={() => !isDisabled && setSelectedPaymentMethod(m.toLowerCase())}
+                  disabled={isDisabled}
+                >
+                  <View style={[styles.radio, selectedPaymentMethod === m.toLowerCase() ? { backgroundColor: '#dc2626' } : {}]} />
+                  <Text style={{ fontWeight: '600', flex: 1 }}>{m}</Text>
+                  {isDisabled && <Text style={{ fontSize: 12, color: '#6b7280' }}>(Coming Soon)</Text>}
+                </TouchableOpacity>
+              );
+            })}
+            <SectionCard>
+              <Text style={{ fontWeight: '600', marginBottom: 8 }}>Payment Summary</Text>
+              <Row label="Base Amount" value={`₱${BASE_AMOUNT.toFixed(2)}`} />
+              <Row label="Service Fee" value={`₱${SERVICE_FEE.toFixed(2)}`} />
+              <Row label="Total Amount" value={`₱${totalAmount.toFixed(2)}`} valueTint="#dc2626" />
+            </SectionCard>
+            <TouchableOpacity
+              style={[
+                styles.primaryBtn,
+                { backgroundColor: '#dc2626' },
+                !isBookingEnabled && { opacity: 0.5 }
+              ]}
+              onPress={() => {
+                setShowPaymentModal(false);
+                bookDelivery();
+              }}
+              disabled={!isBookingEnabled}
+            >
+              <Text style={styles.primaryText}>
+                Book Delivery{showTotalAmount ? ` - ₱${totalAmount.toFixed(2)}` : ' - ₱0.00'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
+
+        <Modal visible={showOrderTracking} onClose={() => setShowOrderTracking(false)} title="Track Your Order">
+          <View style={{ gap: 12 }}>
+            <View style={{ backgroundColor: '#fee2e2', borderRadius: 12, padding: 12, gap: 8 }}>
+              <Text style={{ fontWeight: '600', color: '#111827' }}>Order #{currentOrder?.order_number || currentOrder?.id || 'ORD-001'}</Text>
+              <Text style={{ color: '#6b7280', fontSize: 12 }}>Status: {currentOrder?.status || 'Pending'}</Text>
+              {currentOrder?.rider_name && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Ionicons name="person" size={14} color="#dc2626" />
+                  <Text style={{ color: '#6b7280', fontSize: 12 }}>
+                    Rider: {currentOrder.rider_name}
+                  </Text>
+                </View>
+              )}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Ionicons name="navigate" size={14} color="#dc2626" />
+                <Text style={{ color: '#6b7280', fontSize: 12 }}>
+                  {currentOrder?.rider_name ? 'Rider is on the way' : 'Looking for available rider...'}
+                </Text>
+              </View>
+            </View>
+            {[
+              { title: 'Order Confirmed', completed: currentOrder?.status !== 'pending', icon: 'checkmark-circle' },
+              { title: 'Rider Assigned', completed: deliveryStatus?.is_assigned || false, icon: 'person' },
+              { title: 'Rider Accepted', completed: deliveryStatus?.is_accepted || false, icon: 'thumbs-up' },
+              { title: 'Order Picked Up', completed: deliveryStatus?.is_picked_up || false, icon: 'cube' },
+              { title: 'Delivered', completed: deliveryStatus?.is_completed || false, icon: 'checkmark-done-circle' },
+            ].map((step, i) => (
+              <View key={i} style={{ flexDirection: 'row', gap: 8 }}>
+                <View style={{ width: 24, height: 24, borderRadius: 999, backgroundColor: step.completed ? '#16a34a' : '#e5e7eb', alignItems: 'center', justifyContent: 'center' }}>
+                  {step.completed && <Ionicons name="checkmark" size={14} color="#fff" />}
+                </View>
+                <View style={{ flex: 1, justifyContent: 'center' }}>
+                  <Text style={{ fontWeight: step.completed ? '600' : '400', color: step.completed ? '#111827' : '#6b7280' }}>{step.title}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </Modal>
+
+        <Modal visible={showEditProfile} onClose={() => setShowEditProfile(false)} title="Edit Profile">
+          <View style={{ gap: 12, marginBottom: 16 }}>
+            <TextInput
+              placeholder="Full Name"
+              value={editProfileName}
+              onChangeText={setEditProfileName}
+              style={styles.input}
+              placeholderTextColor="#9ca3af"
+            />
+            <TextInput
+              placeholder="Email"
+              value={editProfileEmail}
+              onChangeText={setEditProfileEmail}
+              style={styles.input}
+              placeholderTextColor="#9ca3af"
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <TouchableOpacity style={styles.primaryBtn} onPress={handleUpdateProfile}>
+              <Text style={styles.primaryText}>Save Changes</Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
+
+        <Modal visible={showChangePassword} onClose={() => setShowChangePassword(false)} title="Change Password">
+          <View style={{ gap: 12, marginBottom: 16 }}>
+            <TextInput
+              placeholder="Current Password"
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
+              secureTextEntry
+              style={styles.input}
+              placeholderTextColor="#9ca3af"
+            />
+            <TextInput
+              placeholder="New Password"
+              value={newPassword}
+              onChangeText={setNewPassword}
+              secureTextEntry
+              style={styles.input}
+              placeholderTextColor="#9ca3af"
+            />
+            <TextInput
+              placeholder="Confirm New Password"
+              value={confirmNewPassword}
+              onChangeText={setConfirmNewPassword}
+              secureTextEntry
+              style={styles.input}
+              placeholderTextColor="#9ca3af"
+            />
+            <TouchableOpacity style={styles.primaryBtn} onPress={handleChangePassword}>
+              <Text style={styles.primaryText}>Change Password</Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
+
+        <Modal visible={showLogoutConfirm} onClose={() => setShowLogoutConfirm(false)} title="Logout">
+          <Text style={{ color: '#6b7280', marginBottom: 16 }}>Are you sure you want to logout?</Text>
+          <View style={{ gap: 8 }}>
+            <TouchableOpacity style={styles.primaryBtn} onPress={handleLogout}>
+              <Text style={styles.primaryText}>Yes, Logout</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryBtn} onPress={() => setShowLogoutConfirm(false)}>
+              <Text style={{ color: '#6b7280', fontWeight: '600' }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
+
+        <Modal visible={showServiceTicketDetails} onClose={() => setShowServiceTicketDetails(false)} title={selectedTicket?.title}>
+          {selectedTicket && (
+            <View style={{ gap: 8 }}>
+              <Row label="Status" value={selectedTicket.status.toUpperCase()} />
+              <Row label="Priority" value={selectedTicket.priority.toUpperCase()} />
+              <Row label="Description" value={selectedTicket.description} />
+              <Row label="Location" value={selectedTicket.location} />
+              {selectedTicket.assignedToName && <Row label="Assigned To" value={selectedTicket.assignedToName} />}
+            </View>
+          )}
+        </Modal>
+
+        <Modal visible={showCreateTicket} onClose={() => setShowCreateTicket(false)} title="Create Service Ticket">
+          <View style={{ gap: 12, marginBottom: 16 }}>
+            <TextInput placeholder="Title" style={styles.input} placeholderTextColor="#9ca3af" />
+            <TextInput placeholder="Description" style={[styles.input, { height: 100 }]} multiline placeholderTextColor="#9ca3af" />
+            <TextInput placeholder="Priority" style={styles.input} placeholderTextColor="#9ca3af" />
+            <TextInput placeholder="Location" style={styles.input} placeholderTextColor="#9ca3af" />
+            <TouchableOpacity style={styles.primaryBtn}>
+              <Text style={styles.primaryText}>Create Ticket</Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
+
+        {/* Add Notifications Modal */}
+        <Modal visible={showNotifications} onClose={() => setShowNotifications(false)}>
+          <NotificationsModal
+            notifications={notifications}
+            onClose={() => setShowNotifications(false)}
+            onMarkAllAsRead={async () => {
+              if (currentUser?.id) {
+                const success = await markAllNotificationsAsRead(currentUser.id);
+                if (success) {
+                  // Update all notifications to mark as read in local state
+                  setNotifications((prev) =>
+                    prev.map((notif) => ({ ...notif, is_read: true }))
+                  );
+                  // Update unread count to 0
+                  setUnreadNotificationCount(0);
+                  showToastMessage('All notifications marked as read', 'success');
+                } else {
+                  showToastMessage('Failed to mark notifications as read', 'error');
+                }
+              }
+            }}
+          />
+        </Modal>
+
+        {/* Add Call Options Modal */}
+        <Modal visible={showCallOptions} onClose={() => setShowCallOptions(false)}>
+          <CallOptionsModal
+            onClose={() => setShowCallOptions(false)}
+            onViberPress={async () => {
+              setShowCallOptions(false);
+
+              // Clean phone number (remove spaces, dashes, etc.)
+              const cleanNumber = callNumber.replace(/[\s\-\(\)]/g, '');
+
+              // Viber deep link format: viber://contact?number={phone_number}
+              const viberUrl = `viber://contact?number=${cleanNumber}`;
+
+              try {
+                const canOpen = await Linking.canOpenURL(viberUrl);
+                if (canOpen) {
+                  await Linking.openURL(viberUrl);
+                  showToastMessage(`Opening Viber to call ${callNumber}`, 'info');
+                } else {
+                  // Fallback: Open Viber app or show error
+                  const viberAppUrl = Platform.OS === 'ios'
+                    ? 'viber://'
+                    : 'viber://forward?text=';
+
+                  const canOpenApp = await Linking.canOpenURL(viberAppUrl);
+                  if (canOpenApp) {
+                    await Linking.openURL(viberAppUrl);
+                    showToastMessage('Viber opened. Please search for the contact manually.', 'info');
+                  } else {
+                    showToastMessage('Viber is not installed on this device', 'error');
+                  }
+                }
+              } catch (error) {
+                console.error('Error opening Viber:', error);
+                showToastMessage('Failed to open Viber', 'error');
+              }
+            }}
+            onPhonePress={async () => {
+              setShowCallOptions(false);
+
+              // Clean phone number
+              const cleanNumber = callNumber.replace(/[\s\-\(\)]/g, '');
+
+              // Phone dialer URL
+              const phoneUrl = `tel:${cleanNumber}`;
+
+              try {
+                const canOpen = await Linking.canOpenURL(phoneUrl);
+                if (canOpen) {
+                  await Linking.openURL(phoneUrl);
+                  showToastMessage(`Calling ${callNumber}...`, 'info');
+                } else {
+                  showToastMessage('Unable to make phone calls on this device', 'error');
+                }
+              } catch (error) {
+                console.error('Error making phone call:', error);
+                showToastMessage('Failed to initiate call', 'error');
+              }
+            }}
+          />
+        </Modal>
+
+        {/* Filter Modal */}
+        <Modal visible={showFilter} onClose={() => setShowFilter(false)}>
+          <FilterModal
+            onClose={() => setShowFilter(false)}
+            onApply={handleFilterApply}
+            onReset={handleResetFilters}
+            currentFilters={activeFilters}
+          />
+        </Modal>
+
+        {/* Help Modal */}
+        <Modal visible={showHelp} onClose={() => setShowHelp(false)}>
+          <HelpModal onClose={() => setShowHelp(false)} />
+        </Modal>
+
+        {/* Settings Modal */}
+        <Modal visible={showSettings} onClose={() => setShowSettings(false)}>
+          <SettingsModal
+            onClose={() => setShowSettings(false)}
+            onEditProfile={() => {
+              setShowSettings(false);
+              openEditProfileModal();
+            }}
+            onChangePassword={() => {
+              setShowSettings(false);
+              setShowChangePassword(true);
+            }}
+            onHelp={() => {
+              setShowSettings(false);
+              setShowHelp(true);
+            }}
+            onLogout={() => {
+              setShowSettings(false);
+              setShowLogoutConfirm(true);
+            }}
+          />
+        </Modal>
+
+        {/* Profile Picture Modal */}
+        <ProfilePictureModal
+          visible={showProfilePictureModal}
+          onClose={() => setShowProfilePictureModal(false)}
+          imageUrl={userProfile?.avatar_url}
+          onReplace={handleProfilePictureUpload}
+          isLoading={isUploadingProfilePicture}
+        />
+
+        {/* Share Modal */}
+        <Modal visible={showShare} onClose={() => setShowShare(false)}>
+          <ShareModal onClose={() => setShowShare(false)} orderNumber={currentOrder?.order_number || currentOrder?.id} />
+        </Modal>
+
+        {/* Finding Rider Modal - Only for customers */}
+        {userType === 'customer' && (
+          <Modal visible={showFindingRider} onClose={() => {}} title="Finding Rider">
+            <View style={{ alignItems: 'center', gap: 16, paddingVertical: 20 }}>
+              <View style={{ width: 80, height: 80, borderRadius: 999, backgroundColor: '#fee2e2', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="search" size={36} color="#dc2626" />
+              </View>
+              <View style={{ alignItems: 'center', gap: 8 }}>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: '#111827', textAlign: 'center' }}>
+                  Looking for available riders...
+                </Text>
+                <Text style={{ color: '#6b7280', textAlign: 'center' }}>
+                  Please wait while we find the best rider for your delivery
+                </Text>
+              </View>
+              <View style={{ width: '100%', backgroundColor: '#f3f4f6', borderRadius: 12, padding: 16, gap: 8 }}>
+                <Row label="Order Number" value={currentOrder?.order_number || 'N/A'} />
+                <Row label="Pickup" value={currentOrder?.pickup_address || 'N/A'} />
+                <Row label="Delivery" value={currentOrder?.delivery_address || 'N/A'} />
+                <Row label="Total Amount" value={`₱${(currentOrder?.total_amount || 0).toFixed(2)}`} valueTint="#dc2626" />
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: '#dc2626' }} />
+                <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: '#fca5a5' }} />
+                <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: '#fee2e2' }} />
+              </View>
+
+              <View style={{ alignItems: 'center', paddingVertical: 8 }}>
+                <Text style={{ fontSize: 12, color: '#6b7280' }}>
+                  📡 Waiting for rider to accept (real-time)
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.secondaryBtn, { width: '100%', borderColor: '#dc2626' }]}
+                onPress={cancelOrder}
+                disabled={isLoading}
+              >
+                <Ionicons name="close-circle" size={18} color="#dc2626" />
+                <Text style={{ color: '#dc2626', fontWeight: '600' }}>Cancel Order</Text>
+              </TouchableOpacity>
+            </View>
+          </Modal>
+        )}
+
+        {/* Add Address Modal */}
+        <Modal visible={showAddAddress} onClose={() => setShowAddAddress(false)} title="Add New Address">
+          <View style={{ gap: 12, marginBottom: 16 }}>
+            <TextInput
+              placeholder="Address Name (e.g., Home, Office)"
+              style={styles.input}
+              value={addressName}
+              onChangeText={setAddressName}
+              placeholderTextColor="#9ca3af"
+            />
+            <TextInput
+              placeholder="Full Address"
+              style={[styles.input, { height: 100 }]}
+              value={fullAddress}
+              onChangeText={setFullAddress}
+              multiline
+              placeholderTextColor="#9ca3af"
+            />
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 }}
+              onPress={() => setIsDefaultAddress(!isDefaultAddress)}
+            >
+              <View style={[styles.checkbox, isDefaultAddress && { backgroundColor: '#dc2626' }]} />
+              <Text style={{ color: '#111827', fontSize: 14 }}>Set as default address</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.primaryBtn} onPress={handleAddAddress}>
+              <Text style={styles.primaryText}>Add Address</Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
+
+        {/* Edit Address Modal */}
+        <Modal visible={showEditAddress} onClose={() => setShowEditAddress(false)} title="Edit Address">
+          <View style={{ gap: 12, marginBottom: 16 }}>
+            <TextInput
+              placeholder="Address Name (e.g., Home, Office)"
+              style={styles.input}
+              value={addressName}
+              onChangeText={setAddressName}
+              placeholderTextColor="#9ca3af"
+            />
+            <TextInput
+              placeholder="Full Address"
+              style={[styles.input, { height: 100 }]}
+              value={fullAddress}
+              onChangeText={setFullAddress}
+              multiline
+              placeholderTextColor="#9ca3af"
+            />
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 }}
+              onPress={() => setIsDefaultAddress(!isDefaultAddress)}
+            >
+              <View style={[styles.checkbox, isDefaultAddress && { backgroundColor: '#dc2626' }]} />
+              <Text style={{ color: '#111827', fontSize: 14 }}>Set as default address</Text>
+            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity style={[styles.primaryBtn, { flex: 1, backgroundColor: '#dc2626' }]} onPress={handleUpdateAddress}>
+                <Ionicons name="checkmark" size={18} color="#fff" />
+                <Text style={styles.primaryText}>Save Changes</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.primaryBtn, { flex: 1, backgroundColor: '#ef4444' }]}
+                onPress={handleDeleteAddress}
+              >
+                <Ionicons name="trash" size={18} color="#fff" />
+                <Text style={styles.primaryText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
 
 
-      {/* Toast - positioned at top */}
-      <Toast message={toastMessage} type={toastType} visible={showToast} onHide={() => setShowToast(false)} />
+        {/* Toast - positioned at top */}
+        <Toast message={toastMessage} type={toastType} visible={showToast} onHide={() => setShowToast(false)} />
 
-      {/* Overlays */}
-      <BottomBar items={bottomItems} current={currentScreen} onChange={(k) => setCurrentScreen(k as Screen)} />
-      {isLoading && !isBookingDelivery && <LoadingOverlay type="finding-rider" />}
-      {isUploadingProfilePicture && <LoadingOverlay type="uploading-picture" />}
-    </View>
-  );
-}
-
-// Helper Components
-function Row({ label, value, valueTint }: { label: string; value?: string; valueTint?: string }) {
-  return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
-      <Text style={{ color: '#6b7280' }}>{label}:</Text>
-      <Text style={{ color: valueTint ?? '#111827', fontWeight: '600' }}>{value}</Text>
-    </View>
-  );
-}
-
-function Stat({ value, label }: { value: string; label: string }) {
-  return (
-    <View style={{ flex: 1, backgroundColor: '#fef2f2', borderRadius: 12, padding: 12, alignItems: 'center' }}>
-      <Text style={{ fontSize: 20, fontWeight: '800', color: '#dc2626' }}>{value}</Text>
-      <Text style={{ color: '#6b7280', fontSize: 12 }}>{label}</Text>
-    </View>
-  );
-}
-
-function AddressRow({ label, address, isDefault }: { label: string; address: string; isDefault?: boolean }) {
-  return (
-    <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 8 }}>
-      <Ionicons name="location" size={18} color={isDefault ? '#dc2626' : '#6b7280'} />
-      <View style={{ flex: 1 }}>
-        <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center', marginBottom: 2 }}>
-          <Text style={{ fontWeight: '600', color: '#111827' }}>{label}</Text>
-          {isDefault && <View style={{ backgroundColor: '#fee2e2', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}><Text style={{ fontSize: 10, color: '#dc2626', fontWeight: '600' }}>Default</Text></View>}
-        </View>
-        <Text style={{ color: '#6b7280', fontSize: 12 }}>{address}</Text>
+        {/* Overlays */}
+        <BottomBar items={bottomItems} current={currentScreen} onChange={(k) => setCurrentScreen(k as Screen)} />
+        {isLoading && !isBookingDelivery && <LoadingOverlay type="finding-rider" />}
+        {isUploadingProfilePicture && <LoadingOverlay type="uploading-picture" />}
       </View>
-    </View>
-  );
-}
-
-function PaymentRow({ label, details, isDefault, disabled }: { label: string; details?: string; isDefault?: boolean; disabled?: boolean }) {
-  return (
-    <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 8, opacity: disabled ? 0.4 : 1 }}>
-      <Ionicons name="card" size={18} color={isDefault ? '#dc2626' : '#6b7280'} />
-      <View style={{ flex: 1 }}>
-        <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center', marginBottom: 2 }}>
-          <Text style={{ fontWeight: '600', color: '#111827' }}>{label}</Text>
-          {isDefault && <View style={{ backgroundColor: '#ecfdf5', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}><Text style={{ fontSize: 10, color: '#16a34a', fontWeight: '600' }}>Default</Text></View>}
-          {disabled && <Text style={{ fontSize: 12, color: '#6b7280' }}>(Coming Soon)</Text>}
-        </View>
-        {details && <Text style={{ color: '#6b7280', fontSize: 12 }}>{details}</Text>}
-      </View>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  input: { borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, color: '#111827', fontSize: 14 },
-  underlinedInput: { borderBottomWidth: 1, borderColor: '#e5e7eb', paddingVertical: 10, color: '#111827', fontSize: 14 },
-  primaryBtn: { backgroundColor: '#dc2626', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 },
-  primaryText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  secondaryBtn: { backgroundColor: '#f3f4f6', borderRadius: 12, paddingVertical: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: '#e5e7eb' },
-  secondaryText: { color: '#6b7280', fontWeight: '600' },
-  segment: { flex: 1, backgroundColor: '#f3f4f6', paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
-  segmentActive: { backgroundColor: '#fee2e2' },
-  segmentText: { color: '#6b7280', fontWeight: '600', fontSize: 13 },
-  segmentTextActive: { color: '#dc2626' },
-  sectionTitle: { fontWeight: '600', color: '#111827', marginBottom: 8, fontSize: 14 },
-  paymentRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderWidth: 2, borderColor: '#e5e7eb', borderRadius: 12 },
-  radio: { width: 16, height: 16, borderRadius: 999, borderWidth: 2, borderColor: '#e5e7eb' },
-  checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 2, borderColor: '#e5e7eb' },
-  otpInput: { borderWidth: 2, borderColor: '#e5e7eb', borderRadius: 12, paddingVertical: 12, textAlign: 'center', fontWeight: '600', color: '#111827', fontSize: 18 },
-  trackOrderBtn: { backgroundColor: '#2563eb', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 },
-  callRiderBtn: { backgroundColor: '#4b5563', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 },
-  errorText: { color: '#dc2626', fontSize: 12, marginTop: 4, textAlign: 'center' },
-  // History card styles
-  metaLabel: { color: '#6b7280', fontSize: 12 },
-  orderIdText: { fontSize: 16, fontWeight: '600', color: '#111827' },
-  statusBadge: { backgroundColor: '#d1fae5', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
-  statusBadgeText: { color: '#065f46', fontWeight: '700', fontSize: 12, textTransform: 'capitalize' },
-  riderCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fbe9ea', borderRadius: 12, padding: 12 },
-  avatar: { width: 36, height: 36, borderRadius: 999, backgroundColor: '#fee2e2', alignItems: 'center', justifyContent: 'center' },
-  rowInline: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  dotRed: { width: 8, height: 8, borderRadius: 999, backgroundColor: '#ef4444' },
-  dotGreen: { width: 8, height: 8, borderRadius: 999, backgroundColor: '#10b981' },
-  dotGray: { width: 8, height: 8, borderRadius: 999, backgroundColor: '#9ca3af' },
-});
+    );
+  }

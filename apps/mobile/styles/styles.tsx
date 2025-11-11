@@ -1,0 +1,33 @@
+import { StyleSheet } from 'react-native';
+
+export const styles = StyleSheet.create({
+  input: { borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, color: '#111827', fontSize: 14 },
+  underlinedInput: { borderBottomWidth: 1, borderColor: '#e5e7eb', paddingVertical: 10, color: '#111827', fontSize: 14 },
+  primaryBtn: { backgroundColor: '#dc2626', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 },
+  primaryText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  secondaryBtn: { backgroundColor: '#f3f4f6', borderRadius: 12, paddingVertical: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: '#e5e7eb' },
+  secondaryText: { color: '#6b7280', fontWeight: '600' },
+  segment: { flex: 1, backgroundColor: '#f3f4f6', paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
+  segmentActive: { backgroundColor: '#fee2e2' },
+  segmentText: { color: '#6b7280', fontWeight: '600', fontSize: 13 },
+  segmentTextActive: { color: '#dc2626' },
+  sectionTitle: { fontWeight: '600', color: '#111827', marginBottom: 8, fontSize: 14 },
+  paymentRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderWidth: 2, borderColor: '#e5e7eb', borderRadius: 12 },
+  radio: { width: 16, height: 16, borderRadius: 999, borderWidth: 2, borderColor: '#e5e7eb' },
+  checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 2, borderColor: '#e5e7eb' },
+  otpInput: { borderWidth: 2, borderColor: '#e5e7eb', borderRadius: 12, paddingVertical: 12, textAlign: 'center', fontWeight: '600', color: '#111827', fontSize: 18 },
+  trackOrderBtn: { backgroundColor: '#2563eb', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 },
+  callRiderBtn: { backgroundColor: '#4b5563', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 },
+  errorText: { color: '#dc2626', fontSize: 12, marginTop: 4, textAlign: 'center' },
+  // History card styles
+  metaLabel: { color: '#6b7280', fontSize: 12 },
+  orderIdText: { fontSize: 16, fontWeight: '600', color: '#111827' },
+  statusBadge: { backgroundColor: '#d1fae5', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  statusBadgeText: { color: '#065f46', fontWeight: '700', fontSize: 12, textTransform: 'capitalize' },
+  riderCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fbe9ea', borderRadius: 12, padding: 12 },
+  avatar: { width: 36, height: 36, borderRadius: 999, backgroundColor: '#fee2e2', alignItems: 'center', justifyContent: 'center' },
+  rowInline: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dotRed: { width: 8, height: 8, borderRadius: 999, backgroundColor: '#ef4444' },
+  dotGreen: { width: 8, height: 8, borderRadius: 999, backgroundColor: '#10b981' },
+  dotGray: { width: 8, height: 8, borderRadius: 999, backgroundColor: '#9ca3af' },
+});
