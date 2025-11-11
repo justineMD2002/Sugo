@@ -2543,7 +2543,7 @@ export default function SugoScreen() {
             />
 
             {/* Remember Me Checkbox */}
-            <TouchableOpacity 
+            {/* <TouchableOpacity 
               style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
               onPress={() => {
                 // Toggle remember me functionality can be added here
@@ -2552,9 +2552,9 @@ export default function SugoScreen() {
             >
               <View style={{ width: 20, height: 20, borderRadius: 4, borderWidth: 2, borderColor: '#374151', backgroundColor: '#fff' }}>
                 {/* Checkmark can be shown when active */}
-              </View>
+              {/* </View>
               <Text style={{ color: '#374151', fontSize: 15 }}>Remember me</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
 
             {emailNotConfirmed && (
               <Text style={styles.errorText}>Email not confirmed. Please check email.</Text>
