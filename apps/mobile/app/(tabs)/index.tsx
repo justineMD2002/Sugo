@@ -3159,63 +3159,51 @@ export default function SugoScreen() {
                 subtitle={`Ready for ${workerService === 'delivery' ? 'deliveries' : 'jobs'}?`}
               />
               <View style={{ padding: 12, backgroundColor: '#f9fafb', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' }}>
-                <TouchableOpacity
-                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 8 }}
-                  onPress={() => fetchPendingOrders(searchQuery)}
-                >
-                  <Ionicons name="refresh" size={20} color="#dc2626" />
-                  <Text style={{ color: '#dc2626', fontWeight: '600' }}>Refresh Orders</Text>
-                </TouchableOpacity>
-              </View>
-              <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
-              {/* Search and Filter Bar */}
-              <View style={{ flexDirection: 'row', gap: 12, marginBottom: 8 }}>
-                <View 
-                  style={[
-                    { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#f3f4f6', borderRadius: 12, paddingHorizontal: 12, gap: 8 },
-                    Platform.OS === 'web' && { outline: 'none', outlineWidth: 0, outlineStyle: 'none' } as any
-                  ]}
-                >
+                <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                  {/* Search bar retained */}
+                  <View
+                    style={[
+                      { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#f3f4f6', borderRadius: 12, paddingHorizontal: 12, gap: 8 },
+                      Platform.OS === 'web' && { outline: 'none', outlineWidth: 0, outlineStyle: 'none' } as any
+                    ]}
+                  >
                     <Ionicons name="search" size={20} color="#9ca3af" />
                     <TextInput
                       style={[
-                        { flex: 1, paddingVertical: 12, color: '#111827', fontSize: 16, borderWidth: 0 },
+                        { flex: 1, paddingVertical: 8, color: '#111827', fontSize: 14, borderWidth: 0 },
                         Platform.OS === 'web' && { outline: 'none', outlineWidth: 0, outlineStyle: 'none', WebkitAppearance: 'none' } as any
                       ]}
-                      placeholder="Search orders by ID, address, rider..."
+                      placeholder={`Search ${workerService === 'delivery' ? 'deliveries' : 'jobs'}...`}
                       placeholderTextColor="#9ca3af"
                       value={searchQuery}
                       onChangeText={setSearchQuery}
                     />
                     {searchQuery ? (
                       <TouchableOpacity onPress={() => setSearchQuery('')}>
-                        <Ionicons name="close-circle" size={18} color="#6b7280" />
+                        <Ionicons name="close-circle" size={16} color="#6b7280" />
                       </TouchableOpacity>
                     ) : null}
                   </View>
+                  {/* Refresh button */}
                   <TouchableOpacity
                     style={{
-                      width: 48,
-                      height: 48,
+                      paddingHorizontal: 10,
+                      paddingVertical: 10,
                       borderRadius: 12,
-                      backgroundColor: activeFilters.dateRange !== 'all' || activeFilters.status !== 'all' ? '#dc2626' : '#f3f4f6',
+                      backgroundColor: '#dc2626',
+                      flexDirection: 'row',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      borderWidth: activeFilters.dateRange !== 'all' || activeFilters.status !== 'all' ? 0 : 1,
-                      borderColor: '#e5e7eb',
+                      gap: 4,
                     }}
-                      onPress={() => setShowFilter(true)}
-                    >
-                      <Ionicons name="filter" size={20} color={activeFilters.dateRange !== 'all' || activeFilters.status !== 'all' ? '#fff' : '#6b7280'} />
-                    </TouchableOpacity>
-                  </View>
+                    onPress={() => fetchPendingOrders(searchQuery)}
+                  >
+                    <Ionicons name="refresh" size={18} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
                 {/* Display pending orders - filtering is now server-side */}
-                {pendingOrders.length === 0 && searchQuery ? (
-                  <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
-                    <Ionicons name="search" size={64} color="#d1d5db" />
-                    <Text style={{ color: '#6b7280', fontSize: 16, marginTop: 12 }}>No pending {workerService === 'delivery' ? 'deliveries' : 'jobs'} match your search</Text>
-                  </View>
-                ) : pendingOrders.length === 0 && !searchQuery ? (
+                {pendingOrders.length === 0 ? (
                   <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
                     <Ionicons name="cube-outline" size={64} color="#d1d5db" />
                     <Text style={{ color: '#6b7280', fontSize: 16, marginTop: 12 }}>No pending {workerService === 'delivery' ? 'deliveries' : 'jobs'} available</Text>
