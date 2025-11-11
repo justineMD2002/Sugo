@@ -129,7 +129,7 @@ export function ChatModal({
               {/* <div className="text-right">
                 <p className="text-sm text-muted-foreground">{customerContact}</p>
               </div> */}
-              <Select value={status} onValueChange={handleStatusSelect} disabled={!!pendingStatus || status === "closed"}>
+              <Select value={status} onValueChange={handleStatusSelect} disabled={!!pendingStatus || status === "resolved"}>
                 <SelectTrigger className="w-32">
                   <SelectValue />
                 </SelectTrigger>
@@ -137,7 +137,6 @@ export function ChatModal({
                   <SelectItem value="open">Open</SelectItem>
                   <SelectItem value="in_progress">In Progress</SelectItem>
                   <SelectItem value="resolved">Resolved</SelectItem>
-                  <SelectItem value="closed">Closed</SelectItem>
                 </SelectContent>
               </Select>
               <Button
@@ -171,7 +170,7 @@ export function ChatModal({
               </div>
             )}
           </CardContent>
-          {status !== "closed" && (
+          {status !== "resolved" && (
             <CardFooter>
               <MessageInput 
                 ticketId={ticketId}
@@ -181,18 +180,9 @@ export function ChatModal({
               />
             </CardFooter>
           )}
-          {status === "closed" && (
+          {status === "resolved" && (
             <CardFooter className="justify-center gap-2">
-              <span className="text-sm text-muted-foreground">This ticket is closed.</span>
-              <Button
-                variant="link"
-                size="sm"
-                onClick={() => handleStatusSelect("open")}
-                disabled={!!pendingStatus}
-                className="px-0 h-auto text-sm"
-              >
-                Reopen
-              </Button>
+              <span className="text-sm text-muted-foreground">This ticket is resolved. Chat is disabled.</span>
             </CardFooter>
           )}
         </Card>
