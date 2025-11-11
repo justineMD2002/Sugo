@@ -2055,6 +2055,7 @@ export default function SugoScreen() {
           setEmailNotConfirmed(true);
         } else {
           setEmailNotConfirmed(false);
+          setLoginError(result.error || 'Invalid credentials');
           showToastMessage(result.error || 'Failed to login', 'error');
         }
       }
@@ -2573,7 +2574,12 @@ export default function SugoScreen() {
 
             {/* Sign Up Link */}
             <View style={{ alignItems: 'center' }}>
-              <TouchableOpacity onPress={() => setCurrentScreen('signup')} disabled={isLoading}>
+              <TouchableOpacity onPress={() => {
+                setLoginPhoneNumber('');
+                setLoginPassword('');
+                setLoginError('');
+                setCurrentScreen('signup');
+              }} disabled={isLoading}>
                 <Text style={{ color: '#6b7280', fontSize: 15 }}>
                   Don't have an account? <Text style={{ color: '#dc2626', fontWeight: '600' }}>Sign up</Text>
                 </Text>
@@ -2621,17 +2627,17 @@ export default function SugoScreen() {
             </View>
 
             {loginError ? (
-              <Text style={{ fontSize: 12, color: '#dc2626', marginTop: 4, fontWeight: '500', textAlign: 'center' }}>
+              <Text style={{ fontSize: 12, color: '#dc2626', marginTop: 4, fontWeight: '500', textAlign: 'center', flexWrap: 'wrap', maxWidth: '100%' }}>
                 {loginError}
               </Text>
             ) : null}
 
-            {userType === 'rider' && (
+            {/* {userType === 'rider' && (
               <View style={{ gap: 8, opacity: isLoading ? 0.4 : 1 }}>
                 <Text style={{ fontSize: 12, color: '#6b7280', fontWeight: '600' }}>Select your service</Text>
                 <ServiceSelector value={workerService as any} onChange={(s) => setWorkerService(s)} disabled={isLoading} />
               </View>
-            )}
+            )} */}
           </View>
         </ScrollView>
       </View>
@@ -2733,7 +2739,18 @@ export default function SugoScreen() {
             </TouchableOpacity>
 
             <View style={{ alignItems: 'center', marginTop: 8 }}>
-              <TouchableOpacity onPress={() => setCurrentScreen('login')} disabled={isLoading}>
+              <TouchableOpacity onPress={() => {
+                setSignupFullName('');
+                setSignupEmail('');
+                setSignupPhoneNumber('');
+                setSignupPassword('');
+                setSignupConfirmPassword('');
+                setVehicleBrand('');
+                setVehicleModel('');
+                setVehicleColor('');
+                setPlateNumber('');
+                setCurrentScreen('login');
+              }} disabled={isLoading}>
                 <Text style={{ color: '#6b7280', fontSize: 15 }}>
                   Already have an account? <Text style={{ color: '#dc2626', fontWeight: '600' }}>Log in</Text>
                 </Text>
@@ -2758,7 +2775,7 @@ export default function SugoScreen() {
             <TextInput
               placeholder="Password"
               placeholderTextColor="#9ca3af"
-              style={styles.input}
+              style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 14, color: '#111827', fontSize: 16 }}
               value={signupPassword}
               onChangeText={setSignupPassword}
               secureTextEntry
@@ -2767,7 +2784,7 @@ export default function SugoScreen() {
             <TextInput
               placeholder="Confirm Password"
               placeholderTextColor="#9ca3af"
-              style={styles.input}
+              style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 14, color: '#111827', fontSize: 16 }}
               value={signupConfirmPassword}
               onChangeText={setSignupConfirmPassword}
               secureTextEntry
