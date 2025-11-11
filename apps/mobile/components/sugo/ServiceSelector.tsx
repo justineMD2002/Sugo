@@ -14,9 +14,9 @@ export type ServiceSelectorProps = {
 
 const baseItems: { key: Service; label: string; tint: string; icon: keyof typeof Ionicons.glyphMap; isDisabled?: boolean }[] = [
   { key: 'delivery', label: 'Delivery', tint: '#dc2626', icon: 'cube', isDisabled: false },
-  { key: 'plumbing', label: 'Plumbing', tint: '#2563eb', icon: 'construct', isDisabled: true },
-  { key: 'aircon', label: 'Aircon', tint: '#0d9488', icon: 'snow', isDisabled: true },
-  { key: 'electrician', label: 'Electrician', tint: '#d97706', icon: 'flash', isDisabled: true },
+  { key: 'plumbing', label: 'Plumbing', tint: '#2563eb', icon: 'construct', isDisabled: false },
+  { key: 'aircon', label: 'Aircon', tint: '#0d9488', icon: 'snow', isDisabled: false },
+  { key: 'electrician', label: 'Electrician', tint: '#d97706', icon: 'flash', isDisabled: false },
 ];
 
 export default function ServiceSelector({ value, onChange, disabled = false, services, enableAll = false }: ServiceSelectorProps) {

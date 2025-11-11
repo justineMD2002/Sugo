@@ -1,19 +1,15 @@
-import Animated from 'react-native-reanimated';
+import { Text } from 'react-native';
 
 export function HelloWave() {
+  // Temporarily simplified for APK build without New Architecture
   return (
-    <Animated.Text
+    <Text
       style={{
         fontSize: 28,
         lineHeight: 32,
         marginTop: -6,
-        animationName: {
-          '50%': { transform: [{ rotate: '25deg' }] },
-        },
-        animationIterationCount: 4,
-        animationDuration: '300ms',
       }}>
       👋
-    </Animated.Text>
+    </Text>
   );
 }
