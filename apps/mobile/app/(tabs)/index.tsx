@@ -3491,37 +3491,6 @@ export default function SugoScreen() {
                   <Row label="Phone" value={userProfile?.phone_number || '+63 912 345 6789'} />
                   <Row label="Email" value={userProfile?.email || 'Loading...'} />
                 </SectionCard>
-                <SectionCard title="Saved Addresses">
-                  <View style={{ gap: 12 }}>
-                    {userAddresses.length > 0 ? (
-                      userAddresses.map((address) => (
-                        <TouchableOpacity
-                          key={address.id}
-                          onPress={() => openEditAddressModal(address)}
-                          style={{ backgroundColor: '#f9fafb', borderRadius: 12, padding: 12 }}
-                        >
-                          <AddressRow
-                            label={address.address_name}
-                            address={address.full_address}
-                            isDefault={address.is_default}
-                          />
-                        </TouchableOpacity>
-                      ))
-                    ) : (
-                      <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                        <Ionicons name="location" size={32} color="#d1d5db" />
-                        <Text style={{ color: '#6b7280', marginTop: 8 }}>No saved addresses yet</Text>
-                      </View>
-                    )}
-                    <TouchableOpacity
-                      style={styles.primaryBtn}
-                      onPress={() => setShowAddAddress(true)}
-                    >
-                      <Ionicons name="add" size={18} color="#fff" />
-                      <Text style={styles.primaryText}>Add Address</Text>
-                    </TouchableOpacity>
-                  </View>
-                </SectionCard>
                 <SectionCard title="Payment Methods">
                   <View style={{ gap: 8 }}>
                     <PaymentRow label="Cash on Delivery" isDefault />
