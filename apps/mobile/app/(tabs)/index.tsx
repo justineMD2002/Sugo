@@ -134,7 +134,7 @@ export default function SugoScreen() {
 
   // Profile form state
   const [editProfileName, setEditProfileName] = useState('');
-  const [editProfileEmail, setEditProfileEmail] = useState('');
+  const [editProfilePhone, setEditProfilePhone] = useState('');
 
   // Password form state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -2311,15 +2311,14 @@ export default function SugoScreen() {
 
   // Profile update functions
   const handleUpdateProfile = async () => {
-    if (!currentUser || !editProfileName.trim() || !editProfileEmail.trim()) {
+    if (!currentUser || !editProfileName.trim() || !editProfilePhone.trim()) {
       showToastMessage('Please fill in all required fields', 'error');
       return;
     }
 
-    // Simple email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(editProfileEmail.trim())) {
-      showToastMessage('Please enter a valid email address', 'error');
+    // Validate phone number format (Philippines)
+    if (!isValidPhilippineNumber(editProfilePhone.trim())) {
+      showToastMessage('Please enter a valid Philippine phone number (+639XXXXXXXXX or 09XXXXXXXXX)', 'error');
       return;
     }
 
@@ -2327,7 +2326,7 @@ export default function SugoScreen() {
     try {
       const updateData: UpdateProfileData = {
         full_name: editProfileName.trim(),
-        email: editProfileEmail.trim()
+        phone_number: editProfilePhone.trim()
       };
 
       const result = await updateUserProfile(currentUser.id, updateData);
@@ -2340,7 +2339,7 @@ export default function SugoScreen() {
 
         // Clear form and close modal
         setEditProfileName('');
-        setEditProfileEmail('');
+        setEditProfilePhone('');
         setShowEditProfile(false);
         showToastMessage('Profile updated successfully', 'success');
       } else {
@@ -2393,7 +2392,7 @@ export default function SugoScreen() {
   const openEditProfileModal = () => {
     if (userProfile) {
       setEditProfileName(userProfile.full_name);
-      setEditProfileEmail(userProfile.email);
+      setEditProfilePhone(userProfile.phone_number || '');
     }
     setShowEditProfile(true);
   };
@@ -3828,13 +3827,12 @@ export default function SugoScreen() {
             placeholderTextColor="#9ca3af"
           />
           <TextInput
-            placeholder="Email"
-            value={editProfileEmail}
-            onChangeText={setEditProfileEmail}
+            placeholder="Phone Number (+639XXXXXXXXX or 09XXXXXXXXX)"
+            value={editProfilePhone}
+            onChangeText={setEditProfilePhone}
             style={styles.input}
             placeholderTextColor="#9ca3af"
-            keyboardType="email-address"
-            autoCapitalize="none"
+            keyboardType="phone-pad"
           />
           <TouchableOpacity style={styles.primaryBtn} onPress={handleUpdateProfile}>
             <Text style={styles.primaryText}>Save Changes</Text>
