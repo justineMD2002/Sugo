@@ -58,9 +58,9 @@ export default function ServiceSelector({ value, onChange, disabled = false, ser
 
 const styles = StyleSheet.create({
   grid: { flexDirection: 'row', gap: 12, justifyContent: 'space-between' },
-  item: { alignItems: 'center', gap: 6, flex: 1 },
+  item: { alignItems: 'center', gap: 6, flex: 1, minWidth: 72 },
   iconBox: { width: 48, height: 48, borderRadius: 12, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' },
-  text: { fontSize: 11, color: '#374151' },
+  text: { fontSize: 11, color: '#374151', flexShrink: 0 },
 });
 
 
