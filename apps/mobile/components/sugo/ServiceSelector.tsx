@@ -2,26 +2,33 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-type Service = 'delivery' | 'plumbing' | 'aircon' | 'electrician';
+export type Service = 'delivery' | 'plumbing' | 'aircon' | 'electrician';
 
-type Props = {
+export type ServiceSelectorProps = {
   value: Service;
   onChange: (s: Service) => void;
   disabled?: boolean;
+  services?: Service[];
+  enableAll?: boolean;
 };
 
-const items: { key: Service; label: string; tint: string; icon: keyof typeof Ionicons.glyphMap; isDisabled?: boolean }[] = [
+const baseItems: { key: Service; label: string; tint: string; icon: keyof typeof Ionicons.glyphMap; isDisabled?: boolean }[] = [
   { key: 'delivery', label: 'Delivery', tint: '#dc2626', icon: 'cube', isDisabled: false },
   { key: 'plumbing', label: 'Plumbing', tint: '#2563eb', icon: 'construct', isDisabled: true },
   { key: 'aircon', label: 'Aircon', tint: '#0d9488', icon: 'snow', isDisabled: true },
   { key: 'electrician', label: 'Electrician', tint: '#d97706', icon: 'flash', isDisabled: true },
 ];
 
-export default function ServiceSelector({ value, onChange, disabled = false }: Props) {
+export default function ServiceSelector({ value, onChange, disabled = false, services, enableAll = false }: ServiceSelectorProps) {
+  const visibleItems = (services && services.length > 0)
+    ? baseItems.filter((it) => services.includes(it.key))
+    : baseItems;
+
   return (
     <View style={styles.grid}>
-      {items.map((it) => {
-        const isItemDisabled = disabled || it.isDisabled;
+      {visibleItems.map((it) => {
+        const effectiveDisabled = enableAll ? false : !!it.isDisabled;
+        const isItemDisabled = disabled || effectiveDisabled;
         return (
           <TouchableOpacity
             key={it.key}
@@ -29,7 +36,16 @@ export default function ServiceSelector({ value, onChange, disabled = false }: P
             onPress={() => !isItemDisabled && onChange(it.key)}
             disabled={isItemDisabled}
           >
-            <View style={[styles.iconBox, { backgroundColor: `${it.tint}22`, borderColor: value === it.key ? `${it.tint}66` : '#e5e7eb', borderWidth: 2 }]}>
+            <View
+              style={[
+                styles.iconBox,
+                {
+                  backgroundColor: `${it.tint}22`,
+                  borderColor: value === it.key ? `${it.tint}66` : '#e5e7eb',
+                  borderWidth: 2,
+                },
+              ]}
+            >
               <Ionicons name={it.icon} size={24} color={it.tint} />
             </View>
             <Text style={styles.text}>{it.label}</Text>

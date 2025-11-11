@@ -3486,7 +3486,11 @@ export default function SugoScreen() {
                 onNotificationsPress={() => setShowNotifications(true)}
                 notificationBadge={unreadNotificationCount > 0}
               >
-                <ServiceSelector value={selectedService as any} onChange={(s) => setSelectedService(s)} />
+                <ServiceSelector
+                  value={selectedService as any}
+                  onChange={(s) => setSelectedService(s)}
+                  enableAll
+                />
               </Header>
               <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
                 {selectedService === 'delivery' && (
