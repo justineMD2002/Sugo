@@ -116,7 +116,6 @@ const createColumns = (onOpenChat: (ticketId: string, ticketNumber: string, serv
         open: { label: "Open", className: "text-red-600 bg-red-50" },
         in_progress: { label: "In Progress", className: "text-blue-600 bg-blue-50" },
         resolved: { label: "Resolved", className: "text-green-600 bg-green-50" },
-        closed: { label: "Closed", className: "text-gray-600 bg-gray-50" },
       }[status] || { label: status, className: "text-gray-600 bg-gray-50" }
 
       return (
@@ -182,6 +181,7 @@ export function Tickets({
   isRefreshing
 }: TicketsProps) {
   const { user, isLoading: userLoading } = useCurrentUser()
+  const [tickets, setTickets] = React.useState<Ticket[]>(initialTickets)
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
@@ -211,7 +211,7 @@ export function Tickets({
 
   const handleOpenChat = (ticketId: string, ticketNumber: string, service: string, status: string) => {
     // Find the ticket to get customer data
-    const ticket = initialTickets.find(t => t.id === ticketId)
+    const ticket = tickets.find(t => t.id === ticketId)
     const raw = ticket?.customer as any
     const customer = Array.isArray(raw) ? raw?.[0] : raw
     
@@ -257,11 +257,27 @@ export function Tickets({
 
   const handleStatusChange = async (newStatus: string) => {
     try {
+      // Prevent reopening a resolved ticket
+      const currentTicket = tickets.find(t => t.id === chatModal.ticketId)
+      if (currentTicket?.status === "resolved" && newStatus !== "resolved") {
+        return
+      }
+
+      // Allow only the three valid statuses
+      const allowedStatuses = new Set(["open", "in_progress", "resolved"])
+      if (!allowedStatuses.has(newStatus)) {
+        return
+      }
+
       await updateTicketStatus(chatModal.ticketId, newStatus as any)
       setChatModal((prev) => ({
         ...prev,
         status: newStatus,
       }))
+      // Reflect status change in table rows
+      setTickets((prev) =>
+        prev.map((t) => (t.id === chatModal.ticketId ? { ...t, status: newStatus } as Ticket : t))
+      )
       // You could add a toast notification here for success
     } catch (error) {
       console.error("Failed to update ticket status:", error)
@@ -272,7 +288,7 @@ export function Tickets({
   const columns = createColumns(handleOpenChat)
 
   const table = useReactTable({
-    data: initialTickets,
+    data: tickets,
     columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
@@ -327,7 +343,6 @@ export function Tickets({
             <SelectItem value="open">Open</SelectItem>
             <SelectItem value="in_progress">In Progress</SelectItem>
             <SelectItem value="resolved">Resolved</SelectItem>
-            <SelectItem value="closed">Closed</SelectItem>
           </SelectContent>
         </Select>
         {isRefreshing && (
