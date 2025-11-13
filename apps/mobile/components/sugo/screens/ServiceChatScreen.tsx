@@ -121,7 +121,7 @@ export default function ServiceChatScreen({ serviceType, customerId, customerNam
         }
 
         setTicket(currentTicket);
-        setTicketClosed(currentTicket.status === 'closed');
+        setTicketClosed(currentTicket.status === 'closed' || currentTicket.status === 'resolved');
 
         // Fetch messages for this ticket
         await fetchMessages(currentTicket.id);
@@ -231,10 +231,10 @@ export default function ServiceChatScreen({ serviceType, customerId, customerNam
         (payload) => {
           const updatedTicket = payload.new as Ticket;
           setTicket(updatedTicket);
-          const isClosed = updatedTicket.status === 'closed';
+          const isClosed = updatedTicket.status === 'closed' || updatedTicket.status === 'resolved';
           setTicketClosed(isClosed);
 
-          // When ticket is closed, clear chat locally so user no longer sees old conversation
+          // When ticket is closed or resolved, clear chat locally so user no longer sees old conversation
           if (isClosed) {
             setMessages([]);
             setInput('');
@@ -333,7 +333,7 @@ export default function ServiceChatScreen({ serviceType, customerId, customerNam
     <View style={styles.container}>
       {ticketClosed && (
         <View style={styles.closedBanner}>
-          <Text style={styles.closedText}>This ticket has been closed.</Text>
+          <Text style={styles.closedText}>This ticket has been {ticket?.status === 'resolved' ? 'resolved' : 'closed'}.</Text>
         </View>
       )}
       {ticket && (

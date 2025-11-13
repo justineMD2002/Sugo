@@ -16,15 +16,10 @@
   "engines": {
     "node": ">=18"
   },
-  "packageManager": "npm@10.9.3", 
   "workspaces": [
-    "apps/*",
+    "apps/admin",
     "packages/*"
   ],
-  "overrides": {
-    "react": "19.1.0",
-    "react-dom": "19.1.0"
-  },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0"
   }

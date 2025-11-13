@@ -1398,6 +1398,12 @@ export default function SugoScreen() {
       return;
     }
 
+    // Prevent booking if there's already an ongoing order
+    if (currentOrder) {
+      showToastMessage('You already have an ongoing order. Please wait for a rider to accept or cancel your current order.', 'error');
+      return;
+    }
+
     // Validate phone number before submitting
     if (!isValidReceiverPhone) {
       showToastMessage('Please enter a valid Philippine phone number', 'error');
@@ -2060,6 +2066,7 @@ export default function SugoScreen() {
           setEmailNotConfirmed(true);
         } else {
           setEmailNotConfirmed(false);
+          setLoginError(result.error || 'Invalid credentials');
           showToastMessage(result.error || 'Failed to login', 'error');
         }
       }
@@ -2593,7 +2600,12 @@ export default function SugoScreen() {
 
             {/* Sign Up Link */}
             <View style={{ alignItems: 'center' }}>
-              <TouchableOpacity onPress={() => setCurrentScreen('signup')} disabled={isLoading}>
+              <TouchableOpacity onPress={() => {
+                setLoginPhoneNumber('');
+                setLoginPassword('');
+                setLoginError('');
+                setCurrentScreen('signup');
+              }} disabled={isLoading}>
                 <Text style={{ color: '#6b7280', fontSize: 15 }}>
                   Don't have an account? <Text style={{ color: '#dc2626', fontWeight: '600' }}>Sign up</Text>
                 </Text>
@@ -2641,17 +2653,17 @@ export default function SugoScreen() {
             </View>
 
             {loginError ? (
-              <Text style={{ fontSize: 12, color: '#dc2626', marginTop: 4, fontWeight: '500', textAlign: 'center' }}>
+              <Text style={{ fontSize: 12, color: '#dc2626', marginTop: 4, fontWeight: '500', textAlign: 'center', flexWrap: 'wrap', maxWidth: '100%' }}>
                 {loginError}
               </Text>
             ) : null}
 
-            {userType === 'rider' && (
+            {/* {userType === 'rider' && (
               <View style={{ gap: 8, opacity: isLoading ? 0.4 : 1 }}>
                 <Text style={{ fontSize: 12, color: '#6b7280', fontWeight: '600' }}>Select your service</Text>
                 <ServiceSelector value={workerService as any} onChange={(s) => setWorkerService(s)} disabled={isLoading} />
               </View>
-            )}
+            )} */}
           </View>
         </ScrollView>
       </View>
@@ -2753,7 +2765,18 @@ export default function SugoScreen() {
             </TouchableOpacity>
 
             <View style={{ alignItems: 'center', marginTop: 8 }}>
-              <TouchableOpacity onPress={() => setCurrentScreen('login')} disabled={isLoading}>
+              <TouchableOpacity onPress={() => {
+                setSignupFullName('');
+                setSignupEmail('');
+                setSignupPhoneNumber('');
+                setSignupPassword('');
+                setSignupConfirmPassword('');
+                setVehicleBrand('');
+                setVehicleModel('');
+                setVehicleColor('');
+                setPlateNumber('');
+                setCurrentScreen('login');
+              }} disabled={isLoading}>
                 <Text style={{ color: '#6b7280', fontSize: 15 }}>
                   Already have an account? <Text style={{ color: '#dc2626', fontWeight: '600' }}>Log in</Text>
                 </Text>
@@ -2768,17 +2791,25 @@ export default function SugoScreen() {
   // Password Screen
   if (currentScreen === 'password') {
     return (
-      <View style={{ flex: 1, backgroundColor: '#fee2e2', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', width: '100%' }} showsVerticalScrollIndicator={false}>
-          <View style={{ backgroundColor: '#fff', borderRadius: 24, padding: 20, width: '90%', maxWidth: 700, minWidth: 320, gap: 12 }}>
-            <Text style={{ fontSize: 22, fontWeight: '700', color: '#111827', textAlign: 'center', marginBottom: 8 }}>Set Password</Text>
-            <Text style={{ fontSize: 14, color: '#6b7280', textAlign: 'center', marginBottom: 16 }}>
-              Create a password for your account
-            </Text>
+      <View style={{ flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', width: '100%', alignItems: 'center' }} showsVerticalScrollIndicator={false}>
+          <View style={{ width: '100%', maxWidth: 400, gap: 16 }}>
+            {/* Logo and Title */}
+            <View style={{ alignItems: 'center', gap: 16, marginBottom: 20 }}>
+              <Image
+                source={require('@/assets/images/icon.png')}
+                style={{ width: 120, height: 120 }}
+                resizeMode="contain"
+              />
+              <Text style={{ fontSize: 24, fontWeight: '700', color: '#1f2937' }}>Set Password</Text>
+              <Text style={{ fontSize: 14, color: '#6b7280', textAlign: 'center' }}>
+                Create a password for your account
+              </Text>
+            </View>
             <TextInput
               placeholder="Password"
               placeholderTextColor="#9ca3af"
-              style={styles.input}
+              style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 14, color: '#111827', fontSize: 16 }}
               value={signupPassword}
               onChangeText={setSignupPassword}
               secureTextEntry
@@ -2787,18 +2818,18 @@ export default function SugoScreen() {
             <TextInput
               placeholder="Confirm Password"
               placeholderTextColor="#9ca3af"
-              style={styles.input}
+              style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 14, color: '#111827', fontSize: 16 }}
               value={signupConfirmPassword}
               onChangeText={setSignupConfirmPassword}
               secureTextEntry
               editable={!isLoading}
             />
             <TouchableOpacity
-              style={[styles.primaryBtn, isLoading && { opacity: 0.6 }]}
+              style={[{ backgroundColor: '#dc2626', borderRadius: 12, paddingVertical: 16, alignItems: 'center' }, isLoading && { opacity: 0.6 }]}
               onPress={handlePasswordSignup}
               disabled={isLoading}
             >
-              <Text style={styles.primaryText}>{isLoading ? 'Creating Account...' : 'Create Account'}</Text>
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>{isLoading ? 'Creating Account...' : 'Create Account'}</Text>
             </TouchableOpacity>
             <View style={{ alignItems: 'center', marginTop: 8 }}>
               <TouchableOpacity onPress={() => setCurrentScreen('signup')} disabled={isLoading}>
@@ -3559,6 +3590,16 @@ export default function SugoScreen() {
                   </View>
                 ) : (
                   <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
+                    {selectedService === 'delivery' && currentOrder && (
+                      <View style={{ backgroundColor: '#fef2f2', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#fecaca', marginBottom: 4 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <Ionicons name="information-circle" size={20} color="#dc2626" />
+                          <Text style={{ flex: 1, color: '#dc2626', fontSize: 13, fontWeight: '600' }}>
+                            You have an ongoing order. Cancel or complete it before booking a new delivery.
+                          </Text>
+                        </View>
+                      </View>
+                    )}
                     {selectedService === 'delivery' && (
                       <SectionCard title="Locations" zIndex={3000}>
                         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, zIndex: 2000 }}>
@@ -3572,6 +3613,7 @@ export default function SugoScreen() {
                               isOpen={activeAutocomplete === 'pickup'}
                               onFocus={() => setActiveAutocomplete('pickup')}
                               onBlur={() => setActiveAutocomplete(null)}
+                              editable={!currentOrder}
                             />
                           </View>
                         </View>
@@ -3586,6 +3628,7 @@ export default function SugoScreen() {
                               isOpen={activeAutocomplete === 'delivery'}
                               onFocus={() => setActiveAutocomplete('delivery')}
                               onBlur={() => setActiveAutocomplete(null)}
+                              editable={!currentOrder}
                             />
                           </View>
                         </View>
@@ -3629,6 +3672,7 @@ export default function SugoScreen() {
                               placeholderTextColor="#9ca3af"
                               value={itemDescription}
                               onChangeText={setItemDescription}
+                              editable={!currentOrder}
                             />
                             <TextInput
                               placeholder="Receiver Name"
@@ -3636,6 +3680,7 @@ export default function SugoScreen() {
                               placeholderTextColor="#9ca3af"
                               value={receiverName}
                               onChangeText={setReceiverName}
+                              editable={!currentOrder}
                             />
                             <View>
                               <TextInput
@@ -3648,6 +3693,7 @@ export default function SugoScreen() {
                                 value={receiverPhone}
                                 onChangeText={setReceiverPhone}
                                 keyboardType="phone-pad"
+                                editable={!currentOrder}
                               />
                               {receiverPhone.trim() !== '' && !isValidReceiverPhone && (
                                 <Text style={{ fontSize: 12, color: '#dc2626', marginTop: 4 }}>
@@ -3692,13 +3738,13 @@ export default function SugoScreen() {
                         style={[
                           styles.primaryBtn,
                           { backgroundColor: '#dc2626' },
-                          !isBookingEnabled && { opacity: 0.5 }
+                          (!isBookingEnabled || currentOrder) && { opacity: 0.5 }
                         ]}
                         onPress={bookDelivery}
-                        disabled={!isBookingEnabled}
+                        disabled={!isBookingEnabled || !!currentOrder}
                       >
                         <Text style={styles.primaryText}>
-                          Book Delivery{showTotalAmount ? ` - ₱${totalAmount.toFixed(2)}` : ' - ₱0.00'}
+                          {currentOrder ? 'Order in Progress...' : `Book Delivery${showTotalAmount ? ` - ₱${totalAmount.toFixed(2)}` : ' - ₱0.00'}`}
                         </Text>
                       </TouchableOpacity>
                     )}
@@ -4101,7 +4147,7 @@ export default function SugoScreen() {
 
         {/* Finding Rider Modal - Only for customers */}
         {userType === 'customer' && (
-          <Modal visible={showFindingRider} onClose={() => {}} title="Finding Rider">
+          <Modal visible={showFindingRider} onClose={() => setShowFindingRider(false)} title="Finding Rider">
             <View style={{ alignItems: 'center', gap: 16, paddingVertical: 20 }}>
               <View style={{ width: 80, height: 80, borderRadius: 999, backgroundColor: '#fee2e2', alignItems: 'center', justifyContent: 'center' }}>
                 <Ionicons name="search" size={36} color="#dc2626" />
