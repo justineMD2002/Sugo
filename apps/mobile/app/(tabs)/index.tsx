@@ -157,6 +157,7 @@ export default function SugoScreen() {
   const [loginPassword, setLoginPassword] = useState('');
   const [emailNotConfirmed, setEmailNotConfirmed] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [loginSuccessMessage, setLoginSuccessMessage] = useState('');
 
   // Signup form states
   const [signupFullName, setSignupFullName] = useState('');
@@ -1965,8 +1966,11 @@ export default function SugoScreen() {
         setPlateNumber('');
 
         showToastMessage('Account created successfully! Please check your email.', 'success');
-        // Navigate to login screen immediately
+        
+        // Navigate to login screen and show verification message
         setCurrentScreen('login');
+        setLoginError('');
+        setLoginSuccessMessage('A verification email has been sent to your address. Please verify to continue.');
       } else {
         showToastMessage(result.error || 'Failed to create account', 'error');
       }
@@ -1978,8 +1982,9 @@ export default function SugoScreen() {
   };
 
   const handleLogin = async () => {
-    // Clear any previous login errors
+    // Clear any previous login messages
     setLoginError('');
+    setLoginSuccessMessage('');
 
     // Validate form fields
     if (!loginPhoneNumber.trim()) {
@@ -2561,6 +2566,21 @@ export default function SugoScreen() {
             {emailNotConfirmed && (
               <Text style={styles.errorText}>Email not confirmed. Please check email.</Text>
             )}
+
+            {/* Success Message (green) */}
+            {loginSuccessMessage ? (
+              <Text
+                style={{
+                  marginTop: 4,
+                  fontSize: 12,
+                  color: '#16a34a',
+                  fontWeight: '500',
+                  textAlign: 'center',
+                }}
+              >
+                {loginSuccessMessage}
+              </Text>
+            ) : null}
 
             {/* Login Button */}
             <TouchableOpacity
