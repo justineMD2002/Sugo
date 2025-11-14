@@ -16,7 +16,7 @@ import SettingsModal from '@/components/sugo/SettingsModal';
 import ShareModal from '@/components/sugo/ShareModal';
 import SplashScreen from '@/components/sugo/SplashScreen';
 import Toast from '@/components/sugo/Toast';
-import { getCurrentUser, signInUserWithPhone, signOutUser, SignUpData, signUpUser, getUserProfile, UserProfile, getUserAddresses, Address, createAddress, updateAddress, deleteAddress, setDefaultAddress, CreateAddressData, UpdateAddressData, updateUserProfile, UpdateProfileData, changeUserPassword } from '@/lib/auth';
+import { getCurrentUser, signInUserWithPhone, signOutUser, SignUpData, signUpUser, getUserProfile, UserProfile, /* getUserAddresses */ Address, createAddress, updateAddress, deleteAddress, setDefaultAddress, CreateAddressData, UpdateAddressData, updateUserProfile, UpdateProfileData, changeUserPassword } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { useOrderRealtime } from '@/hooks/use-order-realtime';
 import { notifyRiderAccepted, notifyNewMessage, notifyOrderStatusChanged, getUserNotifications, getUnreadNotificationCount, markAllNotificationsAsRead } from '@/lib/notificationService';
@@ -77,7 +77,7 @@ export default function SugoScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [userAddresses, setUserAddresses] = useState<Address[]>([]);
+  const [userAddresses, setUserAddresses] = useState<Address[] | null>(null);
   const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [isUploadingProfilePicture, setIsUploadingProfilePicture] = useState(false);
 
@@ -1817,14 +1817,12 @@ export default function SugoScreen() {
   // Fetch profile data when user navigates to profile screen
   useEffect(() => {
     const fetchProfileData = async () => {
-      if (currentScreen === 'profile' && currentUser && (!userProfile || userAddresses.length === 0)) {
+      // Only fetch user profile for now (address fetching disabled)
+      if (currentScreen === 'profile' && currentUser && (!userProfile)) {
         setIsProfileLoading(true);
         try {
-          // Fetch both profile and addresses in parallel
-          const [profileResult, addressesResult] = await Promise.all([
-            getUserProfile(currentUser.id),
-            getUserAddresses(currentUser.id)
-          ]);
+          // Fetch profile only
+          const profileResult = await getUserProfile(currentUser.id);
 
           // Handle profile data
           if (profileResult.success && profileResult.profile) {
@@ -1833,15 +1831,6 @@ export default function SugoScreen() {
           } else {
             console.error('Failed to load profile:', profileResult.error);
             showToastMessage(profileResult.error || 'Failed to load profile', 'error');
-          }
-
-          // Handle addresses data
-          if (addressesResult.success && addressesResult.addresses) {
-            setUserAddresses(addressesResult.addresses);
-            console.log('Addresses loaded:', addressesResult.addresses);
-          } else {
-            console.error('Failed to load addresses:', addressesResult.error);
-            // Don't show toast for addresses error since it's not critical
           }
         } catch (error) {
           console.error('Error fetching profile data:', error);
@@ -1853,7 +1842,7 @@ export default function SugoScreen() {
     };
 
     fetchProfileData();
-  }, [currentScreen, currentUser, userProfile, userAddresses]);
+  }, [currentScreen, currentUser, userProfile]);
 
   const handleSignup = () => {
     // Validate form fields
@@ -2286,11 +2275,11 @@ export default function SugoScreen() {
           }
         }
 
-        // Refresh addresses to get the latest state
-        const addressesResult = await getUserAddresses(currentUser.id);
-        if (addressesResult.success && addressesResult.addresses) {
-          setUserAddresses(addressesResult.addresses);
-        }
+        // Address fetching disabled for now
+        // const addressesResult = await getUserAddresses(currentUser.id);
+        // if (addressesResult.success && addressesResult.addresses) {
+        //   setUserAddresses(addressesResult.addresses);
+        // }
 
         // Clear form and close modal
         setAddressName('');
@@ -2335,11 +2324,11 @@ export default function SugoScreen() {
           }
         }
 
-        // Refresh addresses
-        const addressesResult = await getUserAddresses(currentUser.id);
-        if (addressesResult.success && addressesResult.addresses) {
-          setUserAddresses(addressesResult.addresses);
-        }
+        // Address fetching disabled for now
+        // const addressesResult = await getUserAddresses(currentUser.id);
+        // if (addressesResult.success && addressesResult.addresses) {
+        //   setUserAddresses(addressesResult.addresses);
+        // }
 
         // Clear form and close modal
         setSelectedAddress(null);
@@ -2378,11 +2367,11 @@ export default function SugoScreen() {
             try {
               const result = await deleteAddress(selectedAddress.id);
               if (result.success) {
-                // Refresh addresses
-                const addressesResult = await getUserAddresses(currentUser.id);
-                if (addressesResult.success && addressesResult.addresses) {
-                  setUserAddresses(addressesResult.addresses);
-                }
+                // Address fetching disabled for now
+                // const addressesResult = await getUserAddresses(currentUser.id);
+                // if (addressesResult.success && addressesResult.addresses) {
+                //   setUserAddresses(addressesResult.addresses);
+                // }
 
                 // Clear selection and close modal
                 setSelectedAddress(null);
