@@ -158,6 +158,15 @@ export default function SugoScreen() {
   const [emailNotConfirmed, setEmailNotConfirmed] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [loginSuccessMessage, setLoginSuccessMessage] = useState('');
+  // Ensure Android keeps password masked when navigating away/back
+  const [loginPasswordHidden, setLoginPasswordHidden] = useState(true);
+
+  // Re-assert hidden state whenever returning to login screen
+  useEffect(() => {
+    if (currentScreen === 'login') {
+      setLoginPasswordHidden(true);
+    }
+  }, [currentScreen]);
 
   // Signup form states
   const [signupFullName, setSignupFullName] = useState('');
@@ -2415,6 +2424,8 @@ export default function SugoScreen() {
       return;
     }
 
+    // Close modal immediately so loading overlay isn't covered by inputs
+    setShowEditProfile(false);
     setIsLoading(true);
     try {
       const updateData: UpdateProfileData = {
@@ -2430,10 +2441,8 @@ export default function SugoScreen() {
           setUserProfile(profileResult.profile);
         }
 
-        // Clear form and close modal
         setEditProfileName('');
         setEditProfilePhone('');
-        setShowEditProfile(false);
         showToastMessage('Profile updated successfully', 'success');
       } else {
         showToastMessage(result.error || 'Failed to update profile', 'error');
@@ -2546,7 +2555,13 @@ export default function SugoScreen() {
             <TextInput
               placeholder="Password"
               placeholderTextColor="#9ca3af"
-              secureTextEntry
+              secureTextEntry={loginPasswordHidden}
+              autoCapitalize="none"
+              autoCorrect={false}
+              // Helps Android avoid autofill showing plain text
+              autoComplete="password"
+              textContentType="password"
+              importantForAutofill="no"
               style={{ borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 14, color: '#111827', fontSize: 16 }}
               value={loginPassword}
               onChangeText={(text) => {
