@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Sugo",
-    "slug": "sugo-expo",
+    "slug": "sugo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -50,8 +50,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "5b272e67-00fc-4ad5-8d5d-f399349bfb81"
+        "projectId": "3e0d5f54-fae5-4833-9cbd-272903650bbd"
       }
-    }
+    },
+    "owner": "keanu_strygwyr"
   }
 }
